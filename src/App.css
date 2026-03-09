@@ -19,7 +19,7 @@ body {
   height: 100vh; 
 }
 
-/* 📂 상단바 레이아웃 (Vrew 스타일로 정리) */
+/* 📂 상단바 디자인 (드롭다운 포함) */
 .app-header { 
   display: flex; 
   justify-content: space-between; 
@@ -47,8 +47,6 @@ body {
 .app-desc { margin: 0; font-size: 11px; color: #888; }
 
 .header-actions { display: flex; gap: 10px; }
-
-/* 🖱️ 드롭다운 메뉴 디자인 */
 .dropdown-container { position: relative; }
 
 .dropdown-menu { 
@@ -92,7 +90,7 @@ body {
   border-top: 1px solid var(--border); 
 }
 
-/* 🎬 메인 편집 영역 */
+/* 🎬 메인 레이아웃 */
 .app-main { 
   display: flex; 
   flex: 1; 
@@ -121,14 +119,63 @@ body {
 
 video { width: 100%; height: 100%; }
 
+/* ✨ 영상 컨트롤러 디자인 (새로 추가됨!) */
+.video-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  padding: 12px;
+  background: white;
+  border-radius: 16px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.seek-group { display: flex; gap: 4px; }
+
+.seek-btn {
+  background: #f8f8f8;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.seek-btn:hover {
+  background: var(--lilac);
+  color: white;
+  border-color: var(--lilac);
+}
+
+.play-btn {
+  background: var(--lilac);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  min-width: 110px;
+  box-shadow: 0 4px 15px rgba(171, 143, 255, 0.3);
+  transition: 0.2s;
+}
+
+.play-btn:hover { transform: scale(1.03); }
+
 .time-display { 
   font-size: 14px; 
   color: #555; 
+  text-align: center;
   font-variant-numeric: tabular-nums; 
-  padding-top: 4px;
 }
 
-/* 📝 자막 리스트 패널 */
+/* 📝 자막 리스트 (오른쪽 패널) */
 .panel-right { 
   flex: 1; 
   display: flex; 
@@ -142,14 +189,13 @@ video { width: 100%; height: 100%; }
   padding-right: 8px; 
 }
 
-/* 클립 블록 스타일 */
 .clip-block { 
   background: white; 
   border-radius: 12px; 
   padding: 16px; 
   margin-bottom: 12px; 
   border: 1px solid var(--border); 
-  transition: all 0.2s ease; 
+  transition: 0.2s; 
   cursor: pointer; 
 }
 
@@ -163,7 +209,7 @@ video { width: 100%; height: 100%; }
   display: flex; 
   justify-content: space-between; 
   align-items: center; 
-  margin-bottom: 12px; 
+  margin-bottom: 10px; 
   font-size: 12px; 
   color: #777; 
 }
@@ -178,10 +224,7 @@ video { width: 100%; height: 100%; }
   cursor: pointer; 
 }
 
-.frame-btns button:hover { 
-  background: #f5f3ff; 
-  border-color: var(--lilac); 
-}
+.frame-btns button:hover { background: #f5f3ff; border-color: var(--lilac); color: var(--lilac); }
 
 .clip-text { 
   width: 100%; 
@@ -195,63 +238,15 @@ video { width: 100%; height: 100%; }
   color: var(--text); 
 }
 
-/* 📱 모바일 여백 해결 핵심 코드 */
+/* 📱 모바일 여백 최적화 */
 @media (max-width: 800px) {
-  .app-main { 
-    flex-direction: column; 
-    padding: 8px; 
-    gap: 0; /* 패널 사이 붕 뜬 여백 제거 */
-  }
-
-  .panel-left { 
-    flex: none;
-    width: 100%;
-    margin-bottom: 12px;
-  }
-
-  .panel-right {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .subtitle-list {
-    padding-bottom: 40px;
-  }
-
-  .clip-block {
-    padding: 12px;
-    margin-bottom: 8px; /* 자막 사이 간격도 최적화 */
-  }
+  .app-main { flex-direction: column; padding: 8px; gap: 0; }
+  .panel-left { margin-bottom: 12px; }
+  .video-controls { gap: 10px; padding: 10px; }
+  .play-btn { padding: 8px 16px; min-width: 90px; }
 }
 
-/* 공통 버튼 스타일 */
-.primary-button { 
-  background: var(--lilac); 
-  color: white; 
-  border: none; 
-  padding: 10px 20px; 
-  border-radius: 20px; 
-  font-size: 13px; 
-  font-weight: 600; 
-  cursor: pointer; 
-}
-
-.secondary-button { 
-  background: #fff; 
-  color: #444; 
-  border: 1px solid var(--border); 
-  padding: 10px 20px; 
-  border-radius: 20px; 
-  font-size: 13px; 
-  cursor: pointer; 
-}
-
-.del-btn { 
-  color: #ddd; 
-  border: none; 
-  background: none; 
-  font-size: 20px; 
-  cursor: pointer; 
-}
-
+.primary-button { background: var(--lilac); color: white; border: none; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.secondary-button { background: #fff; color: #444; border: 1px solid var(--border); padding: 10px 20px; border-radius: 20px; font-size: 13px; cursor: pointer; }
+.del-btn { color: #ddd; border: none; background: none; font-size: 20px; cursor: pointer; }
 .del-btn:hover { color: #ff4d4d; }

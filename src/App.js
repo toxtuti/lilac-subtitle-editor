@@ -27,7 +27,6 @@ function secondsToSrtTime(totalSeconds) {
   return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(ms, 3)}`;
 }
 
-// SRT 파서
 function srtTimeToSeconds(timeStr) {
   const [hms, ms = '0'] = timeStr.split(',');
   const [h, m, s] = hms.split(':').map(Number);
@@ -53,12 +52,13 @@ function App() {
   const [videoUrl, setVideoUrl] = useState(null);
   const [subtitles, setSubtitles] = useState([]);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [projectName, setProjectName] = useState('vlog_2026-03-09');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSaveOpen, setIsSaveOpen] = useState(false);
 
   const videoRef = useRef(null);
-  const textareaRefs = useRef([]); // ✨ 커서 이동을 위한 참조
+  const textareaRefs = useRef([]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -69,31 +69,39 @@ function App() {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(subtitles));
   }, [subtitles]);
 
-  // --- ✨ 핵심: 클립 나누기 및 자동 커서 이동 ---
-  const handleKeyDown = (e, idx) => {
-    // 한글 입력 중 중복 이벤트 방지
-    if (e.nativeEvent.isComposing) return;
+  // --- ✨ 영상 컨트롤 로직 ---
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) videoRef.current.pause();
+      else videoRef.current.play();
+      setIsPlaying(!isPlaying);
+    }
+  };
 
+  const seekFrames = (frameDelta) => {
+    if (videoRef.current) {
+      const newTime = Math.max(0, videoRef.current.currentTime + (frameDelta / FPS));
+      videoRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
+  };
+
+  const handleKeyDown = (e, idx) => {
+    if (e.nativeEvent.isComposing) return;
     const { selectionStart, value } = e.target;
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const target = subtitles[idx];
       const mid = target.start + (target.end - target.start) / 2;
-      
       const updated = { ...target, end: mid, text: value.substring(0, selectionStart).trim() };
       const newSub = { id: `n-${Date.now()}`, start: mid, end: target.end, text: value.substring(selectionStart).trim() };
-      
       const next = [...subtitles];
       next.splice(idx, 1, updated, newSub);
       setSubtitles(next);
-
-      // 영상 이동 및 다음 칸으로 커서 자동 이동
       setTimeout(() => {
         if (videoRef.current) videoRef.current.currentTime = mid;
-        if (textareaRefs.current[idx + 1]) {
-          textareaRefs.current[idx + 1].focus();
-        }
+        if (textareaRefs.current[idx + 1]) textareaRefs.current[idx + 1].focus();
       }, 50);
     }
 
@@ -102,12 +110,9 @@ function App() {
       const prevSub = subtitles[idx - 1];
       const currSub = subtitles[idx];
       const combinedText = (prevSub.text + ' ' + currSub.text).trim();
-
       const next = [...subtitles];
       next.splice(idx - 1, 2, { ...prevSub, end: currSub.end, text: combinedText });
       setSubtitles(next);
-
-      // 이전 칸으로 커서 이동
       setTimeout(() => {
         if (textareaRefs.current[idx - 1]) {
           textareaRefs.current[idx - 1].focus();
@@ -178,8 +183,26 @@ function App() {
       <main className="app-main">
         <section className="panel-left">
           <div className="video-container">
-            {videoUrl ? <video ref={videoRef} src={videoUrl} controls onTimeUpdate={e => setCurrentTime(e.target.currentTime)} /> : <div className="placeholder">영상을 불러와주세요</div>}
+            {videoUrl ? <video ref={videoRef} src={videoUrl} onTimeUpdate={e => setCurrentTime(e.target.currentTime)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} /> : <div className="placeholder">영상을 불러와주세요</div>}
           </div>
+          
+          {/* ✨ 프레임 이동 컨트롤러 */}
+          <div className="video-controls">
+            <div className="seek-group">
+              <button className="seek-btn" onClick={() => seekFrames(-5)} title="5프레임 뒤로">-5F</button>
+              <button className="seek-btn" onClick={() => seekFrames(-1)} title="1프레임 뒤로">-1F</button>
+            </div>
+            
+            <button className="play-btn" onClick={togglePlay}>
+              {isPlaying ? '⏸ 일시정지' : '▶️ 재생'}
+            </button>
+            
+            <div className="seek-group">
+              <button className="seek-btn" onClick={() => seekFrames(1)} title="1프레임 앞으로">+1F</button>
+              <button className="seek-btn" onClick={() => seekFrames(5)} title="5프레임 앞으로">+5F</button>
+            </div>
+          </div>
+          
           <div className="time-display">현재 시간: <strong>{secondsToTimecode(currentTime)}</strong></div>
         </section>
 
