@@ -1,0 +1,257 @@
+/* 기본 테마 및 색상 설정 */
+:root { 
+  --lilac: #ab8fff; 
+  --bg: #f9f9f9; 
+  --text: #222;
+  --border: #eee;
+}
+
+body { 
+  margin: 0; 
+  background: var(--bg); 
+  font-family: 'Pretendard', -apple-system, sans-serif; 
+  overflow: hidden; 
+}
+
+.app-root { 
+  display: flex; 
+  flex-direction: column; 
+  height: 100vh; 
+}
+
+/* 📂 상단바 레이아웃 (Vrew 스타일로 정리) */
+.app-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  padding: 12px 24px; 
+  background: white; 
+  border-bottom: 1px solid var(--border); 
+  z-index: 1000; 
+}
+
+.app-brand { display: flex; align-items: center; gap: 12px; }
+.app-logo { 
+  width: 32px; 
+  height: 32px; 
+  background: var(--lilac); 
+  border-radius: 8px; 
+  color: white; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-weight: bold; 
+}
+
+.project-name { margin: 0; font-size: 16px; font-weight: 600; }
+.app-desc { margin: 0; font-size: 11px; color: #888; }
+
+.header-actions { display: flex; gap: 10px; }
+
+/* 🖱️ 드롭다운 메뉴 디자인 */
+.dropdown-container { position: relative; }
+
+.dropdown-menu { 
+  position: absolute; 
+  top: calc(100% + 8px); 
+  right: 0; 
+  background: white; 
+  border: 1px solid var(--border); 
+  border-radius: 12px; 
+  display: flex; 
+  flex-direction: column; 
+  min-width: 180px; 
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
+  overflow: hidden; 
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.menu-item { 
+  padding: 12px 16px; 
+  font-size: 13px; 
+  color: #444; 
+  text-align: left; 
+  border: none; 
+  background: none; 
+  cursor: pointer; 
+  transition: 0.2s;
+}
+
+.menu-item:hover { 
+  background: #f5f3ff; 
+  color: var(--lilac); 
+}
+
+.menu-item.reset { 
+  color: #ff4d4d; 
+  border-top: 1px solid var(--border); 
+}
+
+/* 🎬 메인 편집 영역 */
+.app-main { 
+  display: flex; 
+  flex: 1; 
+  overflow: hidden; 
+  padding: 16px; 
+  gap: 16px; 
+}
+
+.panel-left { 
+  flex: 1.4; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
+}
+
+.video-container { 
+  background: #000; 
+  border-radius: 16px; 
+  overflow: hidden; 
+  aspect-ratio: 16/9; 
+  box-shadow: 0 15px 40px rgba(0,0,0,0.2); 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+video { width: 100%; height: 100%; }
+
+.time-display { 
+  font-size: 14px; 
+  color: #555; 
+  font-variant-numeric: tabular-nums; 
+  padding-top: 4px;
+}
+
+/* 📝 자막 리스트 패널 */
+.panel-right { 
+  flex: 1; 
+  display: flex; 
+  flex-direction: column; 
+  min-width: 350px;
+}
+
+.subtitle-list { 
+  flex: 1; 
+  overflow-y: auto; 
+  padding-right: 8px; 
+}
+
+/* 클립 블록 스타일 */
+.clip-block { 
+  background: white; 
+  border-radius: 12px; 
+  padding: 16px; 
+  margin-bottom: 12px; 
+  border: 1px solid var(--border); 
+  transition: all 0.2s ease; 
+  cursor: pointer; 
+}
+
+.clip-block.active { 
+  border-color: var(--lilac); 
+  background: #fdfcff; 
+  box-shadow: 0 0 0 3px rgba(171, 143, 255, 0.15); 
+}
+
+.clip-meta { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  margin-bottom: 12px; 
+  font-size: 12px; 
+  color: #777; 
+}
+
+.frame-btns { display: flex; gap: 4px; }
+.frame-btns button { 
+  padding: 4px 10px; 
+  border-radius: 6px; 
+  border: 1px solid var(--border); 
+  background: #fff; 
+  font-size: 11px; 
+  cursor: pointer; 
+}
+
+.frame-btns button:hover { 
+  background: #f5f3ff; 
+  border-color: var(--lilac); 
+}
+
+.clip-text { 
+  width: 100%; 
+  border: none; 
+  background: transparent; 
+  font-size: 15px; 
+  line-height: 1.6; 
+  resize: none; 
+  outline: none; 
+  padding: 0; 
+  color: var(--text); 
+}
+
+/* 📱 모바일 여백 해결 핵심 코드 */
+@media (max-width: 800px) {
+  .app-main { 
+    flex-direction: column; 
+    padding: 8px; 
+    gap: 0; /* 패널 사이 붕 뜬 여백 제거 */
+  }
+
+  .panel-left { 
+    flex: none;
+    width: 100%;
+    margin-bottom: 12px;
+  }
+
+  .panel-right {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .subtitle-list {
+    padding-bottom: 40px;
+  }
+
+  .clip-block {
+    padding: 12px;
+    margin-bottom: 8px; /* 자막 사이 간격도 최적화 */
+  }
+}
+
+/* 공통 버튼 스타일 */
+.primary-button { 
+  background: var(--lilac); 
+  color: white; 
+  border: none; 
+  padding: 10px 20px; 
+  border-radius: 20px; 
+  font-size: 13px; 
+  font-weight: 600; 
+  cursor: pointer; 
+}
+
+.secondary-button { 
+  background: #fff; 
+  color: #444; 
+  border: 1px solid var(--border); 
+  padding: 10px 20px; 
+  border-radius: 20px; 
+  font-size: 13px; 
+  cursor: pointer; 
+}
+
+.del-btn { 
+  color: #ddd; 
+  border: none; 
+  background: none; 
+  font-size: 20px; 
+  cursor: pointer; 
+}
+
+.del-btn:hover { color: #ff4d4d; }
