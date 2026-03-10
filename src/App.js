@@ -4,6 +4,7 @@ import './App.css';
 const DEFAULT_DURATION = 2.5; 
 const FPS = 24;
 const STORAGE_KEY = 'subtitleEditor_subtitles_v1';
+const MAX_CPS = 15; // 💡 초당 15자 이상이면 빨간색 경고!
 
 function secondsToTimecode(totalSeconds) {
   if (Number.isNaN(totalSeconds) || totalSeconds == null) return '00:00:00:00';
@@ -52,35 +53,12 @@ function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [projectName, setProjectName] = useState('vlog_2026-03-09');
+  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSaveOpen, setIsSaveOpen] = useState(false);
 
   const videoRef = useRef(null);
   const textareaRefs = useRef([]);
-
-  // ✨ 핵심 필살기: 키보드 밀림 방지 로직
-  useEffect(() => {
-    const vvp = window.visualViewport;
-    if (!vvp) return;
-
-    const onViewportChange = () => {
-      // 1. 현재 실제로 보이는 화면 높이를 CSS 변수로 설정
-      document.documentElement.style.setProperty('--app-height', `${vvp.height}px`);
-      // 2. 화면이 밀려 올라간 만큼(offsetTop) 다시 아래로 끌어내림
-      document.documentElement.style.setProperty('--app-top', `${vvp.offsetTop}px`);
-      // 3. 브라우저의 강제 스크롤을 무효화
-      window.scrollTo(0, 0);
-    };
-
-    vvp.addEventListener('resize', onViewportChange);
-    vvp.addEventListener('scroll', onViewportChange);
-    onViewportChange();
-
-    return () => {
-      vvp.removeEventListener('resize', onViewportChange);
-      vvp.removeEventListener('scroll', onViewportChange);
-    };
-  }, []);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -152,7 +130,6 @@ function App() {
           <h1 className="project-name">{projectName}</h1>
         </div>
         <div className="header-actions">
-          {/* 메뉴 불러오기 기능들 꼼꼼히 복구 */}
           <div className="dropdown-container">
             <button className="secondary-button" onClick={() => setIsMenuOpen(!isMenuOpen)}>📂 메뉴</button>
             {isMenuOpen && (
@@ -170,7 +147,6 @@ function App() {
               </div>
             )}
           </div>
-          {/* 저장 기능들 꼼꼼히 복구 */}
           <div className="dropdown-container">
             <button className="primary-button" onClick={() => setIsSaveOpen(!isSaveOpen)}>💾 저장</button>
             {isSaveOpen && (
@@ -196,7 +172,7 @@ function App() {
         <section className="video-panel">
           <div className="video-container">
             {videoUrl ? (
-              <video ref={videoRef} src={videoUrl} playsInline onTimeUpdate={e => setCurrentTime(e.target.currentTime)} />
+              <video ref={videoRef} src={videoUrl} playsInline onTimeUpdate={e => setCurrentTime(e.target.currentTime)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />
             ) : <div className="placeholder">영상을 불러와주세요 😊</div>}
           </div>
           <div className="video-controls">
@@ -213,26 +189,32 @@ function App() {
           {subtitles.length === 0 && (
             <button className="add-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime+2.5, text: '' }])}>+ 첫 자막 추가</button>
           )}
-          {subtitles.map((s, i) => (
-            <div key={s.id} className={`clip ${currentTime >= s.start && currentTime <= s.end ? 'active' : ''}`}>
-              <div className="clip-header">
-                <span>#{i+1} {secondsToTimecode(s.start)}</span>
-                <div className="clip-btns">
-                  <button onClick={() => adjustFrames(i, -10)}>-10F</button>
-                  <button onClick={() => adjustFrames(i, 10)}>+10F</button>
-                  <button onClick={() => setSubtitles(subtitles.filter(x => x.id !== s.id))}>×</button>
+          {subtitles.map((s, i) => {
+            // ✨ 자막 길이 경고 로직 (초당 글자 수 계산)
+            const duration = s.end - s.start;
+            const isTooLong = s.text.length / duration > MAX_CPS;
+
+            return (
+              <div key={s.id} className={`clip ${currentTime >= s.start && currentTime <= s.end ? 'active' : ''} ${isTooLong ? 'warning-red' : ''}`}>
+                <div className="clip-header">
+                  <span>#{i+1} {secondsToTimecode(s.start)}</span>
+                  <div className="clip-btns">
+                    <button onClick={() => adjustFrames(i, -10)}>-10F</button>
+                    <button onClick={() => adjustFrames(i, 10)}>+10F</button>
+                    <button onClick={() => setSubtitles(subtitles.filter(x => x.id !== s.id))}>×</button>
+                  </div>
                 </div>
+                <textarea 
+                  ref={el => textareaRefs.current[i] = el}
+                  value={s.text} 
+                  onChange={e => setSubtitles(subtitles.map(x => x.id === s.id ? {...x, text: e.target.value} : x))}
+                  onKeyDown={e => handleKeyDown(e, i)}
+                  onFocus={() => videoRef.current && (videoRef.current.currentTime = s.start)}
+                  placeholder="자막 입력..."
+                />
               </div>
-              <textarea 
-                ref={el => textareaRefs.current[i] = el}
-                value={s.text} 
-                onChange={e => setSubtitles(subtitles.map(x => x.id === s.id ? {...x, text: e.target.value} : x))}
-                onKeyDown={e => handleKeyDown(e, i)}
-                onFocus={() => videoRef.current && (videoRef.current.currentTime = s.start)}
-                placeholder="자막 입력..."
-              />
-            </div>
-          ))}
+            );
+          })}
         </section>
       </main>
     </div>
