@@ -1,276 +1,141 @@
-/* src/App.css */
-
-:root {
-  --lilac: #ab8fff; /* Standard lilac color from images */
-  --text-main: #333;
-  --bg-light: #f9f9fb;
-  --border-color: #eee;
+/* 1. 기본 테마 및 전체 고정 */
+:root { 
+  --lilac: #ab8fff; 
+  --bg: #ffffff; 
+  --border: #eeeeee;
 }
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: var(--bg-light);
-  color: var(--text-main);
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body { 
+  margin: 0; padding: 0; width: 100%; height: 100%; 
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  overflow: hidden; background: var(--bg); 
+  font-family: 'Pretendard', -apple-system, sans-serif; 
 }
 
-/* Standard Reset/Utility classes */
-.app-logo {
-  width: 30px;
-  height: 30px;
-  background-color: var(--lilac);
-  border-radius: 8px;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 1.1rem;
+.app-root { 
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; overflow: hidden; 
 }
 
-/* Layout structure based on images */
-.app-root {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+/* 2. 상단바 (헤더) - 겹침 현상 해결 */
+.app-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  padding: 8px 12px; 
+  background: white; 
+  border-bottom: 1px solid var(--border); 
+  flex-shrink: 0; 
+  z-index: 1000;
+  min-height: 56px;
 }
 
-/* Header styling from image_3.png */
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 16px;
-  background-color: white;
-  border-bottom: 1px solid var(--border-color);
+.app-brand { 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+  flex: 1; /* 제목이 너무 길어지지 않게 공간 확보 */
+  min-width: 0; /* 글자 생략을 위한 필수 설정 */
 }
 
-.header-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.app-logo { 
+  width: 28px; height: 28px; 
+  background: var(--lilac); 
+  border-radius: 6px; 
+  color: white; 
+  display: flex; align-items: center; justify-content: center; 
+  font-weight: bold; font-size: 14px; 
+  flex-shrink: 0;
 }
 
-.project-title-container {
-  display: flex;
-  flex-direction: column;
-}
-
-.project-title {
-  margin: 0;
-  font-weight: 600;
-  font-size: 1rem;
-}
-
-.project-subtitle {
-  margin: 0;
-  font-size: 0.8rem;
-  color: #888;
-}
-
-.header-actions {
-  display: flex;
-  gap: 10px;
-}
-
-/* Button styles from image_3.png */
-.secondary-button {
-  background-color: transparent;
-  border: 1px solid var(--border-color);
-  color: #555;
-  border-radius: 12px;
-  padding: 6px 14px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.primary-button {
-  background-color: var(--lilac);
-  border: none;
-  color: white;
-  border-radius: 12px;
-  padding: 6px 14px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* Main content area (responsive) */
-.app-main {
-  flex: 1;
-  display: flex;
+.project-name { 
+  margin: 0; 
+  font-size: 14px; 
+  font-weight: 700; 
+  color: #333;
   overflow: hidden;
+  text-overflow: ellipsis; /* 제목이 너무 길면 ...으로 표시 */
+  white-space: nowrap;
 }
 
-/* Video panel styling from image_3.png */
-.video-panel {
-  flex: 1.5; /* Takes more space on desktop */
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  border-right: 1px solid var(--border-color);
+.header-actions { 
+  display: flex; 
+  gap: 6px; 
+  flex-shrink: 0; /* 버튼들은 절대 안 줄어들게 */
 }
 
-.video-container {
+/* 3. 메뉴 및 저장 버튼 (드롭다운) */
+.dropdown-container { position: relative; }
+
+.dropdown-menu { 
+  position: absolute; 
+  top: calc(100% + 8px); 
+  right: 0; 
+  background: white; 
+  border: 1px solid var(--border); 
+  border-radius: 12px; 
+  display: flex; 
+  flex-direction: column; 
+  min-width: 150px; 
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15); 
+  z-index: 2000;
+  overflow: hidden;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.menu-item { 
+  padding: 12px 16px; 
+  font-size: 13px; 
+  border: none; 
+  background: none; 
+  text-align: left; 
+  cursor: pointer; 
+  color: #444;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  background-color: black;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
 }
 
-.video-time-display-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.9rem;
-  color: #555;
+.menu-item:hover { background: #f5f3ff; color: var(--lilac); }
+.menu-item.reset { color: #ff4d4d; border-top: 1px solid var(--border); }
+
+/* 4. 메인 영역 */
+.app-main { display: flex; flex: 1; flex-direction: row; overflow: hidden; padding: 16px; gap: 16px; }
+
+.sticky-video-panel { flex: 1.4; display: flex; flex-direction: column; gap: 10px; height: 100%; }
+.video-container { background: #000; border-radius: 12px; overflow: hidden; width: 100%; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
+video { width: 100%; height: 100%; object-fit: contain; }
+
+.video-controls { 
+  display: flex; align-items: center; justify-content: center; gap: 8px; 
+  padding: 10px; background: #fdfcff; border-radius: 12px; border: 1px solid var(--border);
+}
+.seek-btn { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 11px; font-weight: bold; }
+.play-btn { background: var(--lilac); color: white; border: none; border-radius: 12px; padding: 8px 18px; font-size: 12px; font-weight: bold; box-shadow: 0 4px 10px rgba(171, 143, 255, 0.2); }
+.time-display { font-size: 13px; font-family: monospace; color: #555; margin: 0 4px; }
+
+.subtitle-scroll-panel { flex: 1; min-width: 350px; overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; -webkit-overflow-scrolling: touch; }
+
+.clip-block { background: white; border-radius: 12px; padding: 14px; margin-bottom: 10px; border: 1px solid var(--border); }
+.clip-block.active { border-color: var(--lilac); background: #fdfcff; box-shadow: 0 0 0 3px rgba(171, 143, 255, 0.1); }
+.clip-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 11px; color: #888; }
+.frame-btns button { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: #fff; font-size: 10px; margin-left: 3px; }
+.clip-text { width: 100%; border: none; background: transparent; font-size: 15px; line-height: 1.5; resize: none; outline: none; padding: 0; color: #222; }
+
+/* 📱 모바일 최적화 (여기가 핵심!) */
+@media (max-width: 800px) {
+  .app-main { flex-direction: column; padding: 0; gap: 0; }
+  .sticky-video-panel { border-bottom: 1px solid var(--border); padding: 8px; }
+  .subtitle-scroll-panel { padding: 12px; padding-bottom: 100px; min-width: 0; }
+  .project-name { max-width: 120px; } /* 제목 길이를 제한해서 버튼들과 안 겹치게 함 */
 }
 
-.video-time-display {
-  font-family: monospace;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.video-controls {
-  display: flex;
-  gap: 8px;
-}
-
-.frame-button {
-  background-color: white;
-  border: 1px solid var(--border-color);
-  color: var(--lilac);
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 0.8rem;
-  font-weight: bold;
-}
-
-.play-button {
-  background-color: var(--lilac);
-  border: none;
-  color: white;
-  border-radius: 12px;
-  padding: 6px 16px;
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-/* Subtitle editor area styling from image_3.png */
-.editor-panel {
-  flex: 1; /* Takes less space on desktop */
-  overflow-y: auto;
-  padding: 16px;
-  background-color: white;
-}
-
-.add-first-subtitle {
-  padding: 20px;
-  border: 1px dashed var(--lilac);
-  color: var(--lilac);
-  border-radius: 12px;
-  text-align: center;
-  margin-bottom: 16px;
-  background-color: var(--bg-light);
-}
-
-.subtitle-block {
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 12px;
-  margin-bottom: 12px;
-  background-color: white;
-  transition: box-shadow 0.2s;
-}
-
-.subtitle-block:hover {
-  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-}
-
-.subtitle-block.selected {
-  border-color: var(--lilac);
-  background-color: #fdfcff;
-}
-
-.subtitle-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.8rem;
-  color: #777;
-  margin-bottom: 8px;
-}
-
-.subtitle-id-time {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.subtitle-time {
-  font-family: monospace;
-}
-
-.subtitle-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.subtitle-action-button {
-  background-color: white;
-  border: 1px solid var(--border-color);
-  color: var(--lilac);
-  border-radius: 6px;
-  padding: 3px 6px;
-  font-size: 0.75rem;
-  font-weight: bold;
-}
-
-.delete-button {
-  color: #999;
-  border: none;
-  background: transparent;
-  font-size: 1rem;
-  margin-left: 8px;
-}
-
-.subtitle-textarea {
-  width: 100%;
-  border: none;
-  outline: none;
-  resize: none;
-  font-size: 0.95rem;
-  font-family: inherit;
-  color: var(--text-main);
-  padding: 0;
-  line-height: 1.4;
-}
-
-/* Mobile Responsiveness from image_3.png */
-@media (max-width: 768px) {
-  .app-main {
-    flex-direction: column;
-  }
-  .video-panel {
-    border-right: none;
-    border-bottom: 1px solid var(--border-color);
-  }
-}
+/* 공통 버튼 */
+.primary-button { background: var(--lilac); color: white; border: none; padding: 8px 14px; border-radius: 18px; font-size: 12px; font-weight: 600; }
+.secondary-button { background: white; color: #444; border: 1px solid var(--border); padding: 8px 14px; border-radius: 18px; font-size: 12px; }
+.del-btn { color: #ddd; border: none; background: none; font-size: 18px; }
