@@ -1,141 +1,114 @@
-/* 1. 기본 테마 및 전체 고정 */
+/* 1. 기본 테마 및 색상 설정 */
 :root { 
   --lilac: #ab8fff; 
-  --bg: #ffffff; 
+  --bg: #f5f5f7; 
   --border: #eeeeee;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* 화면 전체 고정 (사파리 튕김 방지) */
 html, body { 
   margin: 0; padding: 0; width: 100%; height: 100%; 
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  overflow: hidden; background: var(--bg); 
-  font-family: 'Pretendard', -apple-system, sans-serif; 
+  overflow: hidden; position: fixed; background: var(--bg);
+  font-family: 'Pretendard', -apple-system, sans-serif;
 }
 
 .app-root { 
-  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-  display: flex; flex-direction: column; overflow: hidden; 
+  position: fixed; top: 0; left: 0; width: 100%; 
+  height: var(--app-height, 100vh); 
+  top: var(--app-top, 0); 
+  display: flex; flex-direction: column; background: white;
 }
 
-/* 2. 상단바 (헤더) - 겹침 현상 해결 */
+/* 2. 상단바 (헤더) 디자인 - 겹침 방지 */
 .app-header { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  padding: 8px 12px; 
-  background: white; 
-  border-bottom: 1px solid var(--border); 
-  flex-shrink: 0; 
-  z-index: 1000;
-  min-height: 56px;
+  flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; 
+  padding: 10px 16px; border-bottom: 1px solid var(--border); z-index: 1000;
+  background: white;
 }
 
-.app-brand { 
-  display: flex; 
-  align-items: center; 
-  gap: 8px; 
-  flex: 1; /* 제목이 너무 길어지지 않게 공간 확보 */
-  min-width: 0; /* 글자 생략을 위한 필수 설정 */
-}
-
+.app-brand { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .app-logo { 
-  width: 28px; height: 28px; 
-  background: var(--lilac); 
-  border-radius: 6px; 
-  color: white; 
-  display: flex; align-items: center; justify-content: center; 
-  font-weight: bold; font-size: 14px; 
-  flex-shrink: 0;
+  width: 28px; height: 28px; background: var(--lilac); border-radius: 6px; 
+  color: white; display: flex; align-items: center; justify-content: center; 
+  font-weight: bold; font-size: 14px; flex-shrink: 0;
 }
-
 .project-name { 
-  margin: 0; 
-  font-size: 14px; 
-  font-weight: 700; 
-  color: #333;
-  overflow: hidden;
-  text-overflow: ellipsis; /* 제목이 너무 길면 ...으로 표시 */
-  white-space: nowrap;
+  margin: 0; font-size: 15px; font-weight: 600; 
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; 
 }
 
-.header-actions { 
-  display: flex; 
-  gap: 6px; 
-  flex-shrink: 0; /* 버튼들은 절대 안 줄어들게 */
-}
+.header-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.header-actions button { padding: 6px 12px; border-radius: 15px; border: 1px solid var(--border); background: white; font-size: 12px; cursor: pointer; }
+.primary-button { background: var(--lilac) !important; color: white !important; border: none !important; font-weight: bold; }
 
-/* 3. 메뉴 및 저장 버튼 (드롭다운) */
+/* 3. 드롭다운 메뉴 (공중에 뜨게 설정) */
 .dropdown-container { position: relative; }
-
 .dropdown-menu { 
-  position: absolute; 
-  top: calc(100% + 8px); 
-  right: 0; 
-  background: white; 
-  border: 1px solid var(--border); 
-  border-radius: 12px; 
-  display: flex; 
-  flex-direction: column; 
-  min-width: 150px; 
-  box-shadow: 0 8px 25px rgba(0,0,0,0.15); 
-  z-index: 2000;
-  overflow: hidden;
-  animation: slideDown 0.2s ease-out;
+  position: absolute; top: calc(100% + 8px); right: 0; 
+  background: white; border: 1px solid var(--border); border-radius: 12px; 
+  display: flex; flex-direction: column; min-width: 150px; 
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 2000; overflow: hidden; 
+}
+.menu-item { padding: 12px; font-size: 12px; border: none; background: none; text-align: left; cursor: pointer; border-bottom: 1px solid #fafafa; }
+.menu-item:hover { background: #fdfcff; color: var(--lilac); }
+.menu-item.reset { color: #ff4d4d; }
+
+/* 4. 메인 레이아웃 (데스크탑 좌우 / 모바일 상하) */
+.app-main { display: flex; flex: 1; overflow: hidden; }
+
+/* 데스크탑 버전 */
+@media (min-width: 801px) {
+  .app-main { flex-direction: row; padding: 20px; gap: 20px; }
+  .video-panel, .sticky-video-panel { flex: 1.5; display: flex; flex-direction: column; gap: 15px; height: 100%; }
+  .subtitle-panel, .subtitle-scroll-panel { flex: 1; overflow-y: auto; padding-right: 10px; }
 }
 
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
+/* 모바일 버전 */
+@media (max-width: 800px) {
+  .app-main { flex-direction: column; }
+  .video-panel, .sticky-video-panel { flex-shrink: 0; background: white; border-bottom: 1px solid var(--border); z-index: 50; padding: 10px; }
+  .subtitle-panel, .subtitle-scroll-panel { flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 100px; }
 }
 
-.menu-item { 
-  padding: 12px 16px; 
-  font-size: 13px; 
-  border: none; 
-  background: none; 
-  text-align: left; 
-  cursor: pointer; 
-  color: #444;
-  width: 100%;
-}
-
-.menu-item:hover { background: #f5f3ff; color: var(--lilac); }
-.menu-item.reset { color: #ff4d4d; border-top: 1px solid var(--border); }
-
-/* 4. 메인 영역 */
-.app-main { display: flex; flex: 1; flex-direction: row; overflow: hidden; padding: 16px; gap: 16px; }
-
-.sticky-video-panel { flex: 1.4; display: flex; flex-direction: column; gap: 10px; height: 100%; }
-.video-container { background: #000; border-radius: 12px; overflow: hidden; width: 100%; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
+/* 5. 비디오 및 컨트롤러 */
+.video-container { background: #000; width: 100%; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 video { width: 100%; height: 100%; object-fit: contain; }
 
-.video-controls { 
-  display: flex; align-items: center; justify-content: center; gap: 8px; 
-  padding: 10px; background: #fdfcff; border-radius: 12px; border: 1px solid var(--border);
+.video-controls { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; }
+.video-controls button, .seek-btn { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: white; font-size: 11px; font-weight: bold; cursor: pointer; }
+.play-btn { background: var(--lilac) !important; color: white !important; min-width: 60px; border: none !important; }
+.time-display { font-size: 13px; font-family: monospace; font-weight: bold; color: var(--lilac); margin-top: 5px; text-align: center; }
+
+/* 6. 자막 클립 디자인 */
+.clip, .clip-block { 
+  background: #f9f9fb; border-radius: 12px; padding: 15px; margin-bottom: 12px; 
+  border: 1px solid var(--border); transition: 0.2s; 
 }
-.seek-btn { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 11px; font-weight: bold; }
-.play-btn { background: var(--lilac); color: white; border: none; border-radius: 12px; padding: 8px 18px; font-size: 12px; font-weight: bold; box-shadow: 0 4px 10px rgba(171, 143, 255, 0.2); }
-.time-display { font-size: 13px; font-family: monospace; color: #555; margin: 0 4px; }
+.clip.active, .clip-block.active { border-color: var(--lilac); background: #fdfcff; box-shadow: 0 4px 12px rgba(171, 143, 255, 0.1); }
 
-.subtitle-scroll-panel { flex: 1; min-width: 350px; overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; -webkit-overflow-scrolling: touch; }
+.clip-header, .clip-meta { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 8px; }
+.clip-btns, .frame-btns { display: flex; gap: 4px; }
+.clip-btns button, .frame-btns button { padding: 3px 8px; border-radius: 4px; border: 1px solid #ddd; background: white; font-size: 10px; cursor: pointer; }
 
-.clip-block { background: white; border-radius: 12px; padding: 14px; margin-bottom: 10px; border: 1px solid var(--border); }
-.clip-block.active { border-color: var(--lilac); background: #fdfcff; box-shadow: 0 0 0 3px rgba(171, 143, 255, 0.1); }
-.clip-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 11px; color: #888; }
-.frame-btns button { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: #fff; font-size: 10px; margin-left: 3px; }
-.clip-text { width: 100%; border: none; background: transparent; font-size: 15px; line-height: 1.5; resize: none; outline: none; padding: 0; color: #222; }
-
-/* 📱 모바일 최적화 (여기가 핵심!) */
-@media (max-width: 800px) {
-  .app-main { flex-direction: column; padding: 0; gap: 0; }
-  .sticky-video-panel { border-bottom: 1px solid var(--border); padding: 8px; }
-  .subtitle-scroll-panel { padding: 12px; padding-bottom: 100px; min-width: 0; }
-  .project-name { max-width: 120px; } /* 제목 길이를 제한해서 버튼들과 안 겹치게 함 */
+.clip textarea, .clip-text { 
+  width: 100%; border: none; background: transparent; font-size: 15px; 
+  resize: none; outline: none; line-height: 1.5; color: #333; padding: 0;
 }
 
-/* 공통 버튼 */
-.primary-button { background: var(--lilac); color: white; border: none; padding: 8px 14px; border-radius: 18px; font-size: 12px; font-weight: 600; }
-.secondary-button { background: white; color: #444; border: 1px solid var(--border); padding: 8px 14px; border-radius: 18px; font-size: 12px; }
-.del-btn { color: #ddd; border: none; background: none; font-size: 18px; }
+/* 🚨 7. 자막 길 때 빨간 경고 기능 추가! */
+.clip.warning-red, .clip-block.warning-red {
+  border-color: #ff4d4d !important;
+  background: #fff5f5 !important;
+}
+.clip.warning-red textarea, .clip-block.warning-red textarea {
+  color: #ff4d4d !important;
+}
+.clip.warning-red .clip-header span, .clip-block.warning-red .clip-meta span {
+  color: #ff4d4d !important;
+  font-weight: bold;
+}
+
+.del-btn { border: none; background: none; color: #ccc; font-size: 16px; cursor: pointer; }
+.add-btn, .add-first-btn { width: 100%; padding: 15px; border: 1px dashed var(--lilac); background: transparent; color: var(--lilac); border-radius: 12px; font-weight: bold; cursor: pointer; }
