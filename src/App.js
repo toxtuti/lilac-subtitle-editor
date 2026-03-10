@@ -52,6 +52,8 @@ function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [projectName, setProjectName] = useState('vlog_2026-03-09');
+  
+  // ✨ 메뉴 상태 관리 완벽 복구
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSaveOpen, setIsSaveOpen] = useState(false);
 
@@ -100,9 +102,8 @@ function App() {
         if (videoRef.current) videoRef.current.currentTime = mid;
         if (textareaRefs.current[idx + 1]) {
           textareaRefs.current[idx + 1].focus();
-          textareaRefs.current[idx + 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-      }, 100);
+      }, 50);
     }
 
     if (e.key === 'Backspace' && selectionStart === 0 && idx > 0) {
@@ -124,24 +125,48 @@ function App() {
           <h1 className="project-name">{projectName}</h1>
         </div>
         <div className="header-actions">
+          {/* ✨ 메뉴 버튼 복구 */}
           <div className="dropdown-container">
-            <button className="secondary-button" onClick={() => setIsMenuOpen(!isMenuOpen)}>📂 메뉴</button>
+            <button className="secondary-button" onClick={() => { setIsMenuOpen(!isMenuOpen); setIsSaveOpen(false); }}>📂 메뉴</button>
             {isMenuOpen && (
               <div className="dropdown-menu">
-                <input type="file" id="v" hidden onChange={e => setVideoUrl(URL.createObjectURL(e.target.files[0]))} />
+                <input type="file" id="v" hidden onChange={e => { setVideoUrl(URL.createObjectURL(e.target.files[0])); setIsMenuOpen(false); }} />
                 <label htmlFor="v" className="menu-item">📹 영상 불러오기</label>
-                <input type="file" id="s" hidden accept=".srt" onChange={async e => setSubtitles(parseSRT(await e.target.files[0].text()))} />
+                
+                <input type="file" id="s" hidden accept=".srt" onChange={async e => { setSubtitles(parseSRT(await e.target.files[0].text())); setIsMenuOpen(false); }} />
                 <label htmlFor="s" className="menu-item">📜 SRT 불러오기</label>
-                <button className="menu-item reset" onClick={() => setSubtitles([])}>🔄 초기화</button>
+                
+                <input type="file" id="j" hidden accept=".json" onChange={async e => {
+                  const data = JSON.parse(await e.target.files[0].text());
+                  setProjectName(data.projectName); setSubtitles(data.subtitles); setIsMenuOpen(false);
+                }} />
+                <label htmlFor="j" className="menu-item">📁 JSON 불러오기</label>
+                
+                <button className="menu-item reset" onClick={() => { setSubtitles([]); setIsMenuOpen(false); }}>🔄 초기화</button>
               </div>
             )}
           </div>
-          <button className="primary-button" onClick={togglePlay}>{isPlaying ? '⏸ 정지' : '▶️ 재생'}</button>
-          <button className="save-btn" onClick={() => {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
-            a.download = `${projectName}.json`; a.click();
-          }}>💾 저장</button>
+
+          {/* ✨ 저장 버튼 복구 */}
+          <div className="dropdown-container">
+            <button className="primary-button" onClick={() => { setIsSaveOpen(!isSaveOpen); setIsMenuOpen(false); }}>💾 저장</button>
+            {isSaveOpen && (
+              <div className="dropdown-menu">
+                <button className="menu-item" onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
+                  a.download = `${projectName}.json`; a.click(); setIsSaveOpen(false);
+                }}>📁 JSON 저장하기</button>
+                
+                <button className="menu-item" onClick={() => {
+                  const a = document.createElement('a');
+                  const srtText = subtitles.map((s, i) => `${i+1}\n${secondsToSrtTime(s.start)} --> ${secondsToSrtTime(s.end)}\n${s.text}`).join('\n\n');
+                  a.href = URL.createObjectURL(new Blob([srtText], { type: 'text/plain' }));
+                  a.download = `${projectName}.srt`; a.click(); setIsSaveOpen(false);
+                }}>📝 SRT 내보내기</button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -149,29 +174,24 @@ function App() {
         <section className="sticky-video-panel">
           <div className="video-container">
             {videoUrl ? (
-              <video 
-                ref={videoRef} 
-                src={videoUrl} 
-                playsInline 
-                webkit-playsinline="true"
-                onTimeUpdate={e => setCurrentTime(e.target.currentTime)} 
-              />
+              <video ref={videoRef} src={videoUrl} playsInline webkit-playsinline="true" onTimeUpdate={e => setCurrentTime(e.target.currentTime)} />
             ) : (
               <div className="placeholder">영상을 불러와주세요 😊</div>
             )}
           </div>
           <div className="video-controls">
-            <button onClick={() => seekFrames(-5)}>-5F</button>
-            <button onClick={() => seekFrames(-1)}>-1F</button>
+            <button className="seek-btn" onClick={() => seekFrames(-5)}>-5F</button>
+            <button className="seek-btn" onClick={() => seekFrames(-1)}>-1F</button>
+            <button className="play-btn" onClick={togglePlay}>{isPlaying ? '⏸' : '▶️'}</button>
             <span className="time-display">{secondsToTimecode(currentTime)}</span>
-            <button onClick={() => seekFrames(1)}>+1F</button>
-            <button onClick={() => seekFrames(5)}>+5F</button>
+            <button className="seek-btn" onClick={() => seekFrames(1)}>+1F</button>
+            <button className="seek-btn" onClick={() => seekFrames(5)}>+5F</button>
           </div>
         </section>
 
         <section className="subtitle-scroll-panel">
           {subtitles.length === 0 && (
-            <button className="add-first-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime + 2.5, text: '' }])}>+ 첫 자막 추가</button>
+            <button className="add-first-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime + 2.5, text: '' }])}>+ 첫 자막 추가하기</button>
           )}
           {subtitles.map((s, i) => (
             <div key={s.id} className={`clip-block ${currentTime >= s.start && currentTime <= s.end ? 'active' : ''}`}>
