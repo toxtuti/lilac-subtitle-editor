@@ -53,12 +53,29 @@ function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [projectName, setProjectName] = useState('vlog_2026-03-09');
-  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSaveOpen, setIsSaveOpen] = useState(false);
 
   const videoRef = useRef(null);
   const textareaRefs = useRef([]);
+
+  // ✨ 지은이의 필살기: 키보드 밀림 방지 로직 (수정 금지!)
+  useEffect(() => {
+    const vvp = window.visualViewport;
+    if (!vvp) return;
+    const onViewportChange = () => {
+      document.documentElement.style.setProperty('--app-height', `${vvp.height}px`);
+      document.documentElement.style.setProperty('--app-top', `${vvp.offsetTop}px`);
+      window.scrollTo(0, 0);
+    };
+    vvp.addEventListener('resize', onViewportChange);
+    vvp.addEventListener('scroll', onViewportChange);
+    onViewportChange();
+    return () => {
+      vvp.removeEventListener('resize', onViewportChange);
+      vvp.removeEventListener('scroll', onViewportChange);
+    };
+  }, []);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -172,7 +189,7 @@ function App() {
         <section className="video-panel">
           <div className="video-container">
             {videoUrl ? (
-              <video ref={videoRef} src={videoUrl} playsInline onTimeUpdate={e => setCurrentTime(e.target.currentTime)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />
+              <video ref={videoRef} src={videoUrl} playsInline onTimeUpdate={e => setCurrentTime(e.target.currentTime)} />
             ) : <div className="placeholder">영상을 불러와주세요 😊</div>}
           </div>
           <div className="video-controls">
@@ -190,7 +207,6 @@ function App() {
             <button className="add-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime+2.5, text: '' }])}>+ 첫 자막 추가</button>
           )}
           {subtitles.map((s, i) => {
-            // ✨ 자막 길이 경고 로직 (초당 글자 수 계산)
             const duration = s.end - s.start;
             const isTooLong = s.text.length / duration > MAX_CPS;
 
