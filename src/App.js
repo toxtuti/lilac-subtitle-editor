@@ -52,12 +52,35 @@ function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [projectName, setProjectName] = useState('vlog_2026-03-09');
-  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSaveOpen, setIsSaveOpen] = useState(false);
 
   const videoRef = useRef(null);
   const textareaRefs = useRef([]);
+
+  // ✨ 핵심 필살기: 키보드 밀림 방지 로직
+  useEffect(() => {
+    const vvp = window.visualViewport;
+    if (!vvp) return;
+
+    const onViewportChange = () => {
+      // 1. 현재 실제로 보이는 화면 높이를 CSS 변수로 설정
+      document.documentElement.style.setProperty('--app-height', `${vvp.height}px`);
+      // 2. 화면이 밀려 올라간 만큼(offsetTop) 다시 아래로 끌어내림
+      document.documentElement.style.setProperty('--app-top', `${vvp.offsetTop}px`);
+      // 3. 브라우저의 강제 스크롤을 무효화
+      window.scrollTo(0, 0);
+    };
+
+    vvp.addEventListener('resize', onViewportChange);
+    vvp.addEventListener('scroll', onViewportChange);
+    onViewportChange();
+
+    return () => {
+      vvp.removeEventListener('resize', onViewportChange);
+      vvp.removeEventListener('scroll', onViewportChange);
+    };
+  }, []);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -84,10 +107,20 @@ function App() {
     }
   };
 
+  const adjustFrames = (idx, delta) => {
+    const next = [...subtitles];
+    const target = { ...next[idx], end: Math.max(next[idx].start + 0.1, next[idx].end + (delta / FPS)) };
+    const diff = target.end - next[idx].end;
+    next[idx] = target;
+    for (let i = idx + 1; i < next.length; i++) {
+      next[i] = { ...next[i], start: next[i].start + diff, end: next[i].end + diff };
+    }
+    setSubtitles(next);
+  };
+
   const handleKeyDown = (e, idx) => {
     if (e.nativeEvent.isComposing) return;
     const { selectionStart, value } = e.target;
-
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const target = subtitles[idx];
@@ -98,14 +131,8 @@ function App() {
         { id: `n-${Date.now()}`, start: mid, end: target.end, text: value.substring(selectionStart).trim() }
       );
       setSubtitles(next);
-      setTimeout(() => {
-        if (videoRef.current) videoRef.current.currentTime = mid;
-        if (textareaRefs.current[idx + 1]) {
-          textareaRefs.current[idx + 1].focus();
-        }
-      }, 50);
+      setTimeout(() => textareaRefs.current[idx + 1]?.focus(), 50);
     }
-
     if (e.key === 'Backspace' && selectionStart === 0 && idx > 0) {
       e.preventDefault();
       const prev = subtitles[idx - 1];
@@ -117,58 +144,47 @@ function App() {
     }
   };
 
-  const adjustFrames = (idx, delta) => {
-    const next = [...subtitles];
-    const target = { ...next[idx], end: Math.max(next[idx].start + 0.1, next[idx].end + (delta / FPS)) };
-    const diff = target.end - next[idx].end;
-    next[idx] = target;
-    for (let i = idx + 1; i < next.length; i++) {
-      next[i] = { ...next[i], start: next[i].start + diff, end: next[i].end + diff };
-    }
-    setSubtitles(next);
-    if (videoRef.current) videoRef.current.currentTime = target.end;
-  };
-
   return (
     <div className="app-root" onClick={() => { setIsMenuOpen(false); setIsSaveOpen(false); }}>
       <header className="app-header" onClick={(e) => e.stopPropagation()}>
         <div className="app-brand">
           <div className="app-logo">L</div>
-          <div><h1 className="project-name">{projectName}</h1></div>
+          <h1 className="project-name">{projectName}</h1>
         </div>
         <div className="header-actions">
+          {/* 메뉴 불러오기 기능들 꼼꼼히 복구 */}
           <div className="dropdown-container">
-            <button className={`secondary-button ${isMenuOpen ? 'active' : ''}`} onClick={() => {setIsMenuOpen(!isMenuOpen); setIsSaveOpen(false);}}>📂 메뉴</button>
+            <button className="secondary-button" onClick={() => setIsMenuOpen(!isMenuOpen)}>📂 메뉴</button>
             {isMenuOpen && (
               <div className="dropdown-menu">
-                <input type="file" id="v" hidden onChange={e => { setVideoUrl(URL.createObjectURL(e.target.files[0])); setIsMenuOpen(false); }} />
+                <input type="file" id="v" hidden onChange={e => setVideoUrl(URL.createObjectURL(e.target.files[0]))} />
                 <label htmlFor="v" className="menu-item">📹 영상 불러오기</label>
-                <input type="file" id="s" hidden accept=".srt" onChange={async e => { setSubtitles(parseSRT(await e.target.files[0].text())); setIsMenuOpen(false); }} />
+                <input type="file" id="s" hidden accept=".srt" onChange={async e => setSubtitles(parseSRT(await e.target.files[0].text()))} />
                 <label htmlFor="s" className="menu-item">📜 SRT 불러오기</label>
                 <input type="file" id="j" hidden accept=".json" onChange={async e => {
                   const data = JSON.parse(await e.target.files[0].text());
-                  setProjectName(data.projectName); setSubtitles(data.subtitles); setIsMenuOpen(false);
+                  setProjectName(data.projectName); setSubtitles(data.subtitles);
                 }} />
                 <label htmlFor="j" className="menu-item">📁 JSON 불러오기</label>
-                <button className="menu-item reset" onClick={() => { setSubtitles([]); setIsMenuOpen(false); }}>🔄 초기화</button>
+                <button className="menu-item reset" onClick={() => setSubtitles([])}>🔄 초기화</button>
               </div>
             )}
           </div>
-
+          {/* 저장 기능들 꼼꼼히 복구 */}
           <div className="dropdown-container">
-            <button className={`primary-button ${isSaveOpen ? 'active' : ''}`} onClick={() => {setIsSaveOpen(!isSaveOpen); setIsMenuOpen(false);}}>💾 저장</button>
+            <button className="primary-button" onClick={() => setIsSaveOpen(!isSaveOpen)}>💾 저장</button>
             {isSaveOpen && (
               <div className="dropdown-menu">
                 <button className="menu-item" onClick={() => {
                   const a = document.createElement('a');
                   a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
-                  a.download = `${projectName}.json`; a.click(); setIsSaveOpen(false);
-                }}>📁 JSON 저장하기</button>
+                  a.download = `${projectName}.json`; a.click();
+                }}>📁 JSON 저장</button>
                 <button className="menu-item" onClick={() => {
                   const a = document.createElement('a');
-                  const srtText = subtitles.map((s, i) => `${i+1}\n${secondsToSrtTime(s.start)} --> ${secondsToSrtTime(s.end)}\n${s.text}`).join('\n\n');
-                  a.href = URL.createObjectURL(new Blob([srtText], { type: 'text/plain' }));
-                  a.download = `${projectName}.srt`; a.click(); setIsSaveOpen(false);
+                  const srt = subtitles.map((s, i) => `${i+1}\n${secondsToSrtTime(s.start)} --> ${secondsToSrtTime(s.end)}\n${s.text}`).join('\n\n');
+                  a.href = URL.createObjectURL(new Blob([srt], { type: 'text/plain' }));
+                  a.download = `${projectName}.srt`; a.click();
                 }}>📝 SRT 내보내기</button>
               </div>
             )}
@@ -177,52 +193,43 @@ function App() {
       </header>
 
       <main className="app-main">
-        <section className="sticky-video-panel">
+        <section className="video-panel">
           <div className="video-container">
             {videoUrl ? (
-              <video ref={videoRef} src={videoUrl} playsInline webkit-playsinline="true" onTimeUpdate={e => setCurrentTime(e.target.currentTime)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />
-            ) : (
-              <div className="placeholder">영상을 불러와주세요 😊</div>
-            )}
+              <video ref={videoRef} src={videoUrl} playsInline onTimeUpdate={e => setCurrentTime(e.target.currentTime)} />
+            ) : <div className="placeholder">영상을 불러와주세요 😊</div>}
           </div>
           <div className="video-controls">
-            <div className="seek-group">
-              <button className="seek-btn" onClick={() => seekFrames(-5)}>-5F</button>
-              <button className="seek-btn" onClick={() => seekFrames(-1)}>-1F</button>
-            </div>
-            <button className="play-btn" onClick={togglePlay}>{isPlaying ? '⏸ 일시정지' : '▶️ 재생'}</button>
-            <div className="seek-group">
-              <button className="seek-btn" onClick={() => seekFrames(1)}>+1F</button>
-              <button className="seek-btn" onClick={() => seekFrames(5)}>+5F</button>
-            </div>
+            <button onClick={() => seekFrames(-5)}>-5F</button>
+            <button onClick={() => seekFrames(-1)}>-1F</button>
+            <button className="play-btn" onClick={togglePlay}>{isPlaying ? '⏸' : '▶️'}</button>
+            <button onClick={() => seekFrames(1)}>+1F</button>
+            <button onClick={() => seekFrames(5)}>+5F</button>
           </div>
-          <div className="time-display">현재 시간: <strong>{secondsToTimecode(currentTime)}</strong></div>
+          <div className="time-display">{secondsToTimecode(currentTime)}</div>
         </section>
 
-        <section className="subtitle-scroll-panel">
+        <section className="subtitle-panel">
           {subtitles.length === 0 && (
-            <div className="empty-state">
-              <button className="primary-button add-first-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime + 2.5, text: '' }])}>+ 첫 자막 추가하기</button>
-            </div>
+            <button className="add-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime+2.5, text: '' }])}>+ 첫 자막 추가</button>
           )}
           {subtitles.map((s, i) => (
-            <div key={s.id} className={`clip-block ${currentTime >= s.start && currentTime <= s.end ? 'active' : ''}`} onClick={() => videoRef.current && (videoRef.current.currentTime = s.start)}>
-              <div className="clip-meta">
-                <span className="idx">#{i+1}</span>
-                <span className="time">{secondsToTimecode(s.start)} - {secondsToTimecode(s.end)}</span>
-                <div className="frame-btns">
-                  <button onClick={e => { e.stopPropagation(); adjustFrames(i, -10); }}>-10F</button>
-                  <button onClick={e => { e.stopPropagation(); adjustFrames(i, 10); }}>+10F</button>
-                  <button className="del-btn" onClick={e => { e.stopPropagation(); setSubtitles(subtitles.filter(x => x.id !== s.id)); }}>×</button>
+            <div key={s.id} className={`clip ${currentTime >= s.start && currentTime <= s.end ? 'active' : ''}`}>
+              <div className="clip-header">
+                <span>#{i+1} {secondsToTimecode(s.start)}</span>
+                <div className="clip-btns">
+                  <button onClick={() => adjustFrames(i, -10)}>-10F</button>
+                  <button onClick={() => adjustFrames(i, 10)}>+10F</button>
+                  <button onClick={() => setSubtitles(subtitles.filter(x => x.id !== s.id))}>×</button>
                 </div>
               </div>
               <textarea 
                 ref={el => textareaRefs.current[i] = el}
-                className="clip-text" 
                 value={s.text} 
-                onKeyDown={e => handleKeyDown(e, i)} 
-                onChange={e => setSubtitles(subtitles.map(x => x.id === s.id ? {...x, text: e.target.value} : x))} 
-                placeholder="자막 내용을 입력하세요..." 
+                onChange={e => setSubtitles(subtitles.map(x => x.id === s.id ? {...x, text: e.target.value} : x))}
+                onKeyDown={e => handleKeyDown(e, i)}
+                onFocus={() => videoRef.current && (videoRef.current.currentTime = s.start)}
+                placeholder="자막 입력..."
               />
             </div>
           ))}
