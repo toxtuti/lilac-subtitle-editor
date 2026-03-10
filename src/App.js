@@ -59,32 +59,6 @@ function App() {
   const videoRef = useRef(null);
   const textareaRefs = useRef([]);
 
-  // ✨ 핵심 추가: 키보드가 올라올 때 화면 높이를 실시간으로 계산하는 레이더
-  useEffect(() => {
-    const handleViewportChange = () => {
-      if (window.visualViewport) {
-        // 현재 실제로 보이는 화면 높이를 계산해서 CSS 변수(--vh)로 넘겨줌
-        document.documentElement.style.setProperty('--vh', `${window.visualViewport.height}px`);
-        // 브라우저가 멋대로 스크롤 올리는 걸 강제로 0으로 끌어내림!
-        window.scrollTo(0, 0);
-        document.body.scrollTop = 0;
-      }
-    };
-
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportChange);
-      window.visualViewport.addEventListener('scroll', handleViewportChange);
-      handleViewportChange(); // 처음 켰을 때 초기 세팅
-    }
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportChange);
-        window.visualViewport.removeEventListener('scroll', handleViewportChange);
-      }
-    };
-  }, []);
-
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) setSubtitles(JSON.parse(raw));
@@ -249,11 +223,6 @@ function App() {
                 onKeyDown={e => handleKeyDown(e, i)} 
                 onChange={e => setSubtitles(subtitles.map(x => x.id === s.id ? {...x, text: e.target.value} : x))} 
                 placeholder="자막 내용을 입력하세요..." 
-                /* ✨ 포커스될 때 브라우저가 위로 튕기는 기본 동작을 한번 더 막아주는 역할 */
-                onFocus={() => {
-                  window.scrollTo(0, 0);
-                  if (videoRef.current) videoRef.current.currentTime = s.start;
-                }}
               />
             </div>
           ))}
