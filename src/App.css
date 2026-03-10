@@ -1,4 +1,4 @@
-/* 1. 기본 초기화 및 색상 */
+/* 1. 기본 초기화 */
 :root { 
   --lilac: #ab8fff; 
   --bg: #f9f9f9; 
@@ -7,78 +7,61 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-/* 💡 화면 밀림 완벽 차단: body 스크롤 아예 금지! */
-html, body { 
+/* 💡 핵심 1: 브라우저 자체가 스크롤되는 것을 원천 차단 (절대 고정) */
+html, body, #root { 
   margin: 0; 
   padding: 0; 
-  width: 100%; 
-  height: 100%; 
-  position: fixed; /* 브라우저가 위로 밀리는 것 방지 */
+  width: 100vw; 
+  height: 100vh; 
+  height: 100dvh; /* 모바일 주소창 높이 변화 완벽 대응 */
+  position: fixed; /* 브라우저 밀림 방지 부적 */
   top: 0; left: 0; right: 0; bottom: 0;
   overflow: hidden; 
   background: var(--bg); 
   font-family: 'Pretendard', -apple-system, sans-serif; 
 }
 
-/* 앱 전체 컨테이너를 절대 위치로 고정 */
+/* 앱 컨테이너를 화면 크기에 딱 맞춤 */
 .app-root { 
-  position: absolute; 
-  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100%; 
+  height: 100%; 
   display: flex; 
   flex-direction: column; 
-  overflow: hidden; 
 }
 
-/* 2. 상단바 (헤더) */
+/* 2. 상단바 (헤더) - 절대 안 줄어들게 고정 */
 .app-header { 
+  flex-shrink: 0; /* 크기 축소 절대 금지 */
   display: flex; justify-content: space-between; align-items: center; 
   padding: 12px 24px; background: white; border-bottom: 1px solid var(--border); 
-  flex-shrink: 0; z-index: 1000;
+  z-index: 1000;
 }
 .app-brand { display: flex; align-items: center; gap: 12px; }
 .app-logo { width: 32px; height: 32px; background: var(--lilac); border-radius: 8px; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; }
 .project-name { margin: 0; font-size: 16px; font-weight: 600; color: #333; }
 .header-actions { display: flex; gap: 8px; }
 
-/* 3. 드롭다운 메뉴 디자인 */
+/* 3. 드롭다운 메뉴 */
 .dropdown-container { position: relative; }
-.dropdown-menu { 
-  position: absolute; top: 100%; right: 0; margin-top: 8px;
-  background: white; border: 1px solid var(--border); border-radius: 12px; 
-  display: flex; flex-direction: column; min-width: 160px; 
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1); z-index: 2000; overflow: hidden;
-}
+.dropdown-menu { position: absolute; top: 100%; right: 0; margin-top: 8px; background: white; border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; min-width: 160px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); z-index: 2000; overflow: hidden; }
 .menu-item { padding: 12px 16px; font-size: 13px; border: none; background: none; text-align: left; cursor: pointer; color: #444; }
 .menu-item:hover { background: #f5f3ff; color: var(--lilac); }
 .menu-item.reset { color: #ff4d4d; border-top: 1px solid var(--border); }
 
-/* 4. 메인 영역 (데스크탑: 가로 배치, 모바일: 세로 배치) */
+/* 4. 메인 영역 (데스크탑: 좌우 / 모바일: 상하) */
 .app-main { 
   display: flex; 
   flex: 1; 
-  flex-direction: row; /* ✨ 데스크탑 좌/우 분리 복구! */
-  overflow: hidden; 
-  padding: 16px; 
-  gap: 16px;
+  flex-direction: row; 
+  overflow: hidden; /* 메인 자체는 스크롤 안 됨 */
+  padding: 16px; gap: 16px; height: 100%; 
 }
 
-/* 영상 패널 (좌측) */
-.sticky-video-panel { 
-  flex: 1.4; 
-  display: flex; flex-direction: column; gap: 12px;
-  height: 100%;
-}
-.video-container { 
-  background: #000; border-radius: 16px; overflow: hidden; 
-  width: 100%; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
+/* 데스크탑 영상 패널 */
+.sticky-video-panel { flex: 1.4; display: flex; flex-direction: column; gap: 12px; height: 100%; flex-shrink: 0; }
+.video-container { background: #000; border-radius: 16px; overflow: hidden; width: 100%; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 video { width: 100%; height: 100%; object-fit: contain; }
-
-/* 영상 컨트롤러 */
-.video-controls { 
-  display: flex; align-items: center; justify-content: center; gap: 15px; 
-  padding: 12px; background: white; border-radius: 16px; border: 1px solid var(--border); flex-shrink: 0;
-}
+.video-controls { display: flex; align-items: center; justify-content: center; gap: 15px; padding: 12px; background: white; border-radius: 16px; border: 1px solid var(--border); flex-shrink: 0; }
 .seek-group { display: flex; gap: 4px; }
 .seek-btn { background: #f8f8f8; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: 600; cursor: pointer; transition: 0.2s; }
 .seek-btn:hover { background: var(--lilac); color: white; border-color: var(--lilac); }
@@ -86,15 +69,8 @@ video { width: 100%; height: 100%; object-fit: contain; }
 .play-btn:hover { transform: scale(1.03); }
 .time-display { font-size: 14px; color: #555; text-align: center; font-variant-numeric: tabular-nums; }
 
-/* 자막 스크롤 패널 (우측) */
-.subtitle-scroll-panel { 
-  flex: 1; 
-  min-width: 350px;
-  overflow-y: auto; /* ✨ 자막 영역만 스크롤 가능! */
-  padding-right: 8px; 
-  display: flex; flex-direction: column;
-}
-
+/* 데스크탑 자막 패널 */
+.subtitle-scroll-panel { flex: 1; min-width: 350px; overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; -webkit-overflow-scrolling: touch; }
 .clip-block { background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); transition: 0.2s; cursor: pointer; flex-shrink: 0; }
 .clip-block.active { border-color: var(--lilac); background: #fdfcff; box-shadow: 0 0 0 3px rgba(171, 143, 255, 0.15); }
 .clip-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 12px; color: #777; }
@@ -103,27 +79,32 @@ video { width: 100%; height: 100%; object-fit: contain; }
 .frame-btns button:hover { background: #f5f3ff; border-color: var(--lilac); color: var(--lilac); }
 .clip-text { width: 100%; border: none; background: transparent; font-size: 15px; line-height: 1.6; resize: none; outline: none; padding: 0; color: #222; }
 
-/* 📱 모바일 환경 최적화 (가로 800px 이하) */
+/* 📱 5. 모바일 최적화 (가장 중요한 부분!) */
 @media (max-width: 800px) {
   .app-main { 
-    flex-direction: column; /* ✨ 모바일에선 위/아래로 배치! */
-    padding: 0; 
-    gap: 0; 
+    flex-direction: column; 
+    padding: 0; gap: 0; height: 100%; 
   }
   
-  /* 영상은 상단에 아예 박아둠 */
+  /* 💡 핵심 2: 모바일 영상 패널은 무조건 상단에 고정! (줄어들지 않음) */
   .sticky-video-panel { 
-    flex: none; height: auto; border-bottom: 1px solid var(--border); 
-    background: white; z-index: 50; padding: 8px; gap: 8px;
+    flex: none; /* 플렉스 영역 무시하고 자기 크기 유지 */
+    flex-shrink: 0; /* 절대 축소 안 됨 */
+    height: auto; 
+    border-bottom: 1px solid var(--border); 
+    background: white; z-index: 50; padding: 8px; gap: 8px; 
   }
   .video-container { border-radius: 8px; }
   .video-controls { border-radius: 8px; padding: 8px; gap: 10px; }
   .play-btn { padding: 8px 16px; min-width: 90px; }
 
-  /* 자막 리스트만 아래에서 스크롤됨 */
+  /* 💡 핵심 3: 자막 패널만 독립적으로 스크롤 됨 */
   .subtitle-scroll-panel { 
-    flex: 1; padding: 12px; padding-bottom: 80px; min-width: 0;
-    -webkit-overflow-scrolling: touch; /* 아이폰 부드러운 스크롤 */
+    flex: 1 1 auto; /* 남은 공간을 모두 차지 */
+    padding: 12px; 
+    padding-bottom: 50vh; /* 키보드가 올라와도 끝까지 스크롤 할 수 있게 하단에 넓은 투명 여백 생성! */
+    min-width: 0;
+    -webkit-overflow-scrolling: touch; 
   }
 }
 
