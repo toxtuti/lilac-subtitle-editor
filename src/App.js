@@ -75,9 +75,12 @@ export default function App() {
     const vvp = window.visualViewport;
     if (!vvp) return;
     const onVC = () => {
-      // 키보드 올라와도 app-root 높이를 visualViewport 기준으로 고정
-      document.documentElement.style.setProperty('--app-height', `${vvp.height}px`);
+      const vh = vvp.height;
+      document.documentElement.style.setProperty('--app-height', `${vh}px`);
       document.documentElement.style.setProperty('--app-offset', `${vvp.offsetTop}px`);
+      // 모바일: 영상 패널 최대 높이를 뷰포트의 40%로 고정
+      // 키보드 올라와도 영상은 vp 기준 40% 이하로만 차지
+      document.documentElement.style.setProperty('--video-panel-max', `${Math.round(vh * 0.42)}px`);
       window.scrollTo(0, 0);
     };
     vvp.addEventListener('resize', onVC);

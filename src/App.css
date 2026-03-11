@@ -118,20 +118,21 @@ html, body {
     height: 100%;
   }
 
-  /* 영상 패널: 상단 고정, 최대 높이 제한 */
+  /* 영상 패널: JS가 계산한 --video-panel-max 기준으로 고정 */
   .video-panel {
     flex-shrink: 0;
     background: white;
     border-bottom: 1px solid var(--border);
     z-index: 50;
     padding: 6px 8px 4px;
-    max-height: 56vh; /* 키보드 없을 때도 절반 이하 */
+    max-height: var(--video-panel-max, 42vh);
+    overflow: hidden;
   }
 
-  /* 영상: 최대 높이 엄격히 제한 */
+  /* 영상: 패널 안에서 남은 공간만 차지 */
   .video-panel .video-container {
     aspect-ratio: 16/9;
-    max-height: 25vh;
+    max-height: calc(var(--video-panel-max, 42vh) - 90px);
   }
 
   /* 타임라인 압축 */
