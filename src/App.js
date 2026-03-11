@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 
 const DEFAULT_DURATION = 3;
@@ -13,42 +13,41 @@ function secondsToTimecode(totalSeconds) {
   const minutes = Math.floor((totalFrames % (3600 * FPS)) / (60 * FPS));
   const seconds = Math.floor((totalFrames % (60 * FPS)) / FPS);
   const frames = totalFrames % FPS;
-  const pad = (n, width) => String(n).padStart(width, '0');
-  return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)}:${pad(frames, 2)}`;
+  const pad = (n, w) => String(n).padStart(w, '0');
+  return `${pad(hours,2)}:${pad(minutes,2)}:${pad(seconds,2)}:${pad(frames,2)}`;
 }
 
-function secondsToSrtTime(totalSeconds) {
-  const clamped = Math.max(0, totalSeconds || 0);
-  const hours = Math.floor(clamped / 3600);
-  const minutes = Math.floor((clamped % 3600) / 60);
-  const seconds = Math.floor(clamped % 60);
-  const ms = Math.round((clamped - Math.floor(clamped)) * 1000);
-  const pad = (n, width) => String(n).padStart(width, '0');
-  return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(ms, 3)}`;
+function secondsToSrtTime(s) {
+  const c = Math.max(0, s || 0);
+  const h = Math.floor(c/3600), m = Math.floor((c%3600)/60), ss = Math.floor(c%60);
+  const ms = Math.round((c - Math.floor(c)) * 1000);
+  const pad = (n, w) => String(n).padStart(w, '0');
+  return `${pad(h,2)}:${pad(m,2)}:${pad(ss,2)},${pad(ms,3)}`;
 }
 
 function parseSRT(text) {
-  const blocks = text.replace(/\r\n/g, '\n').split(/\n{2,}/).filter(Boolean);
+  const blocks = text.replace(/\r\n/g,'\n').split(/\n{2,}/).filter(Boolean);
   return blocks.map((block, idx) => {
     const lines = block.split('\n').filter(Boolean);
     const timeLine = lines.find(l => l.includes('-->')) || '';
     const [startStr, endStr] = timeLine.split('-->').map(s => s.trim());
     const srtToSec = (str) => {
-      const [hms, ms = '0'] = str.split(',');
-      const [h, m, s] = hms.split(':').map(Number);
-      return h * 3600 + m * 60 + s + Number(ms) / 1000;
+      const [hms, ms='0'] = str.split(',');
+      const [h,m,s] = hms.split(':').map(Number);
+      return h*3600 + m*60 + s + Number(ms)/1000;
     };
     return {
       id: `srt-${idx}-${Date.now()}`,
       start: startStr ? srtToSec(startStr) : 0,
       end: endStr ? srtToSec(endStr) : DEFAULT_DURATION,
-      text: lines.slice(lines.indexOf(timeLine) + 1).join('\n')
+      text: lines.slice(lines.indexOf(timeLine)+1).join('\n')
     };
-  }).sort((a, b) => a.start - b.start);
+  }).sort((a,b) => a.start - b.start);
 }
 
-function App() {
+export default function App() {
   const [videoUrl, setVideoUrl] = useState(null);
+  const [videoDuration, setVideoDuration] = useState(0);
   const [subtitles, setSubtitles] = useState([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -59,6 +58,7 @@ function App() {
   const [lastSavedTime, setLastSavedTime] = useState(null);
   const [toast, setToast] = useState(null);
   const [focusedIdx, setFocusedIdx] = useState(null);
+  const [panelView, setPanelView] = useState('card'); // 'card' | 'script'
 
   const isFirstLoad = useRef(true);
   const videoRef = useRef(null);
@@ -66,27 +66,22 @@ function App() {
   const clipRefs = useRef([]);
   const subtitlePanelRef = useRef(null);
   const lastActiveIdx = useRef(-1);
+  const timelineRef = useRef(null);
+  const dragState = useRef(null); // { idx, type: 'move'|'left'|'right', startX, origStart, origEnd }
 
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  };
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
   useEffect(() => {
     const vvp = window.visualViewport;
     if (!vvp) return;
-    const onViewportChange = () => {
+    const onVC = () => {
       document.documentElement.style.setProperty('--app-height', `${vvp.height}px`);
-      document.documentElement.style.setProperty('--app-top', `${vvp.offsetTop}px`);
-      window.scrollTo(0, 0);
+      window.scrollTo(0,0);
     };
-    vvp.addEventListener('resize', onViewportChange);
-    vvp.addEventListener('scroll', onViewportChange);
-    onViewportChange();
-    return () => {
-      vvp.removeEventListener('resize', onViewportChange);
-      vvp.removeEventListener('scroll', onViewportChange);
-    };
+    vvp.addEventListener('resize', onVC);
+    vvp.addEventListener('scroll', onVC);
+    onVC();
+    return () => { vvp.removeEventListener('resize', onVC); vvp.removeEventListener('scroll', onVC); };
   }, []);
 
   useEffect(() => {
@@ -98,68 +93,56 @@ function App() {
     if (isFirstLoad.current) { isFirstLoad.current = false; return; }
     setSaveStatus('unsaved');
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(subtitles));
-    const timer = setTimeout(() => {
-      setSaveStatus('saved');
-      setLastSavedTime(new Date());
-    }, 800);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => { setSaveStatus('saved'); setLastSavedTime(new Date()); }, 800);
+    return () => clearTimeout(t);
   }, [subtitles]);
 
   useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (subtitles.length > 0) { e.preventDefault(); e.returnValue = ''; }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    const fn = (e) => { if (subtitles.length > 0) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', fn);
+    return () => window.removeEventListener('beforeunload', fn);
   }, [subtitles.length]);
 
-  // ✅ 재생 중 currentTime 기준으로 자막 패널 자동 동기화
+  // 재생 중 자막 패널 자동 동기화
   useEffect(() => {
     if (!isPlaying) return;
     const activeIdx = subtitles.findIndex(s => currentTime >= s.start && currentTime < s.end);
     if (activeIdx !== -1 && activeIdx !== lastActiveIdx.current) {
       lastActiveIdx.current = activeIdx;
       setFocusedIdx(activeIdx);
-      // 자막 패널 자동 스크롤
       clipRefs.current[activeIdx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [currentTime, isPlaying, subtitles]);
 
-  // ✅ 재생: 포커스된 자막 시작점부터 재생
   const togglePlay = () => {
     if (!videoRef.current) return;
     if (isPlaying) {
       videoRef.current.pause();
       setIsPlaying(false);
     } else {
-      // 포커스된 자막이 있으면 그 시작점부터, 없으면 현재 위치에서
       if (focusedIdx !== null && subtitles[focusedIdx]) {
-        const startTime = subtitles[focusedIdx].start;
-        videoRef.current.currentTime = startTime;
-        setCurrentTime(startTime);
+        videoRef.current.currentTime = subtitles[focusedIdx].start;
+        setCurrentTime(subtitles[focusedIdx].start);
       }
-      lastActiveIdx.current = -1; // 리셋해서 재생 시작 시 즉시 포커스 이동
+      lastActiveIdx.current = -1;
       videoRef.current.play();
       setIsPlaying(true);
     }
   };
 
   const seekFrames = (delta) => {
-    if (videoRef.current) {
-      const newTime = Math.max(0, videoRef.current.currentTime + (delta / FPS));
-      videoRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
+    if (!videoRef.current) return;
+    const t = Math.max(0, videoRef.current.currentTime + delta/FPS);
+    videoRef.current.currentTime = t;
+    setCurrentTime(t);
   };
 
   const adjustFrames = (idx, delta) => {
     const next = [...subtitles];
-    const target = { ...next[idx], end: Math.max(next[idx].start + 0.1, next[idx].end + (delta / FPS)) };
+    const target = { ...next[idx], end: Math.max(next[idx].start + 0.1, next[idx].end + delta/FPS) };
     const diff = target.end - next[idx].end;
     next[idx] = target;
-    for (let i = idx + 1; i < next.length; i++) {
-      next[i] = { ...next[i], start: next[i].start + diff, end: next[i].end + diff };
-    }
+    for (let i = idx+1; i < next.length; i++) next[i] = { ...next[i], start: next[i].start+diff, end: next[i].end+diff };
     setSubtitles(next);
   };
 
@@ -168,51 +151,109 @@ function App() {
     const { selectionStart, value } = e.target;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      const target = subtitles[idx];
-      const newStart = target.end;
-      const newEnd = newStart + DEFAULT_DURATION;
+      const newStart = subtitles[idx].end;
       const next = [...subtitles];
-      next.splice(idx + 1, 0, { id: `n-${Date.now()}`, start: newStart, end: newEnd, text: '' });
+      next.splice(idx+1, 0, { id: `n-${Date.now()}`, start: newStart, end: newStart+DEFAULT_DURATION, text: '' });
       setSubtitles(next);
-      setTimeout(() => {
-        textareaRefs.current[idx + 1]?.focus();
-        setFocusedIdx(idx + 1);
-      }, 50);
+      setTimeout(() => { textareaRefs.current[idx+1]?.focus(); setFocusedIdx(idx+1); }, 50);
     }
     if (e.key === 'Backspace' && selectionStart === 0 && value === '' && idx > 0) {
       e.preventDefault();
-      const next = subtitles.filter((_, i) => i !== idx);
-      setSubtitles(next);
-      setTimeout(() => {
-        textareaRefs.current[idx - 1]?.focus();
-        setFocusedIdx(idx - 1);
-      }, 50);
+      setSubtitles(subtitles.filter((_,i) => i !== idx));
+      setTimeout(() => { textareaRefs.current[idx-1]?.focus(); setFocusedIdx(idx-1); }, 50);
     }
   };
 
-  // ✅ 미리보기: 재생 중 → currentTime 기준 / 정지 중 → focusedIdx 기준
+  // ── 타임라인 드래그 ──────────────────────────────────────
+  const getTimelineX = useCallback((clientX) => {
+    const rect = timelineRef.current?.getBoundingClientRect();
+    if (!rect || !videoDuration) return 0;
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * videoDuration;
+  }, [videoDuration]);
+
+  const onTimelineDragStart = useCallback((e, idx, type) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    dragState.current = { idx, type, startX: clientX, origStart: subtitles[idx].start, origEnd: subtitles[idx].end };
+
+    const onMove = (ev) => {
+      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const rect = timelineRef.current?.getBoundingClientRect();
+      if (!rect || !videoDuration) return;
+      const dx = (cx - dragState.current.startX) / rect.width * videoDuration;
+      const { idx, type, origStart, origEnd } = dragState.current;
+      setSubtitles(prev => {
+        const next = [...prev];
+        const s = { ...next[idx] };
+        const minDur = 2/FPS;
+        if (type === 'move') {
+          const dur = origEnd - origStart;
+          s.start = Math.max(0, Math.min(videoDuration - dur, origStart + dx));
+          s.end = s.start + dur;
+        } else if (type === 'left') {
+          s.start = Math.max(0, Math.min(origEnd - minDur, origStart + dx));
+        } else if (type === 'right') {
+          s.end = Math.max(origStart + minDur, Math.min(videoDuration, origEnd + dx));
+        }
+        next[idx] = s;
+        return next;
+      });
+    };
+
+    const onUp = () => {
+      dragState.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+  }, [subtitles, videoDuration]);
+
+  const onTimelineClick = useCallback((e) => {
+    if (dragState.current) return;
+    const t = getTimelineX(e.clientX);
+    if (videoRef.current) { videoRef.current.currentTime = t; setCurrentTime(t); }
+  }, [getTimelineX]);
+
+  // ── 미리보기 ────────────────────────────────────────────
   const previewSubtitle = isPlaying
     ? (subtitles.find(s => currentTime >= s.start && currentTime < s.end) ?? null)
     : (focusedIdx !== null && subtitles[focusedIdx] ? subtitles[focusedIdx] : null);
 
-  const formatLastSaved = () => {
-    if (!lastSavedTime) return '';
-    return lastSavedTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-  };
+  const formatLastSaved = () => lastSavedTime
+    ? lastSavedTime.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' }) : '';
 
   const closeAll = () => { setIsMenuOpen(false); setIsSaveOpen(false); };
+
+  const addSubAtCurrentTime = () => {
+    const newSub = { id: `add-${Date.now()}`, start: currentTime, end: currentTime+DEFAULT_DURATION, text: '' };
+    const next = [...subtitles, newSub].sort((a,b) => a.start - b.start);
+    const newIdx = next.findIndex(s => s.id === newSub.id);
+    setSubtitles(next);
+    setTimeout(() => { textareaRefs.current[newIdx]?.focus(); setFocusedIdx(newIdx); }, 50);
+  };
+
+  // ── 렌더 ────────────────────────────────────────────────
+  const timelinePx = (sec) => videoDuration ? `${(sec/videoDuration)*100}%` : '0%';
 
   return (
     <div className="app-root" onClick={closeAll}>
       {toast && <div className="toast">{toast}</div>}
 
-      <header className="app-header" onClick={(e) => e.stopPropagation()}>
+      {/* ── 헤더 ── */}
+      <header className="app-header" onClick={e => e.stopPropagation()}>
         <div className="app-brand">
           <div className="app-logo">L</div>
           <div className="brand-text">
             <h1 className="project-name">{projectName}</h1>
             <span className={`save-status ${saveStatus}`}>
-              {saveStatus === 'saved' ? `✅${lastSavedTime ? ` ${formatLastSaved()}` : ''}` : '🔴'}
+              {saveStatus==='saved' ? `✅${lastSavedTime ? ` ${formatLastSaved()}` : ''}` : '🔴'}
             </span>
           </div>
         </div>
@@ -226,12 +267,12 @@ function App() {
                 <input type="file" id="s" hidden accept=".srt" onChange={async e => { setSubtitles(parseSRT(await e.target.files[0].text())); closeAll(); showToast('📜 SRT 불러오기 완료!'); }} />
                 <label htmlFor="s" className="menu-item">📜 SRT 불러오기</label>
                 <input type="file" id="j" hidden accept=".json" onChange={async e => {
-                  const data = JSON.parse(await e.target.files[0].text());
-                  setProjectName(data.projectName); setSubtitles(data.subtitles); closeAll();
-                  showToast(`📁 "${data.projectName}" 불러오기 완료!`);
+                  const d = JSON.parse(await e.target.files[0].text());
+                  setProjectName(d.projectName); setSubtitles(d.subtitles); closeAll();
+                  showToast(`📁 "${d.projectName}" 불러오기 완료!`);
                 }} />
                 <label htmlFor="j" className="menu-item">📁 JSON 불러오기<span className="menu-sub">다른 기기에서 이어서 작업</span></label>
-                <button className="menu-item reset" onClick={() => { if (window.confirm('자막을 모두 초기화할까요?')) { setSubtitles([]); closeAll(); } }}>🔄 초기화</button>
+                <button className="menu-item reset" onClick={() => { if(window.confirm('자막을 모두 초기화할까요?')) { setSubtitles([]); closeAll(); } }}>🔄 초기화</button>
               </div>
             )}
           </div>
@@ -241,13 +282,13 @@ function App() {
               <div className="dropdown-menu">
                 <button className="menu-item" onClick={() => {
                   const a = document.createElement('a');
-                  a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
+                  a.href = URL.createObjectURL(new Blob([JSON.stringify({projectName,subtitles})],{type:'application/json'}));
                   a.download = `${projectName}.json`; a.click(); closeAll(); showToast('📁 JSON 저장 완료!');
                 }}>📁 JSON으로 저장<span className="menu-sub">다른 기기에서 이어서 쓸 때</span></button>
                 <button className="menu-item" onClick={() => {
                   const a = document.createElement('a');
-                  const srt = subtitles.map((s, i) => `${i + 1}\n${secondsToSrtTime(s.start)} --> ${secondsToSrtTime(s.end)}\n${s.text}`).join('\n\n');
-                  a.href = URL.createObjectURL(new Blob([srt], { type: 'text/plain' }));
+                  const srt = subtitles.map((s,i) => `${i+1}\n${secondsToSrtTime(s.start)} --> ${secondsToSrtTime(s.end)}\n${s.text}`).join('\n\n');
+                  a.href = URL.createObjectURL(new Blob([srt],{type:'text/plain'}));
                   a.download = `${projectName}.srt`; a.click(); closeAll(); showToast('📝 SRT 내보내기 완료!');
                 }}>📝 SRT 내보내기<span className="menu-sub">다빈치에 바로 가져다 쓸 때</span></button>
               </div>
@@ -257,19 +298,62 @@ function App() {
       </header>
 
       <main className="app-main">
+        {/* ── 영상 패널 ── */}
         <section className="video-panel">
           <div className="video-container">
             {videoUrl ? (
               <>
-                <video ref={videoRef} src={videoUrl} playsInline onTimeUpdate={e => setCurrentTime(e.target.currentTime)} />
-                {previewSubtitle?.text && (
-                  <div className="subtitle-overlay">{previewSubtitle.text}</div>
-                )}
+                <video
+                  ref={videoRef} src={videoUrl} playsInline
+                  onTimeUpdate={e => setCurrentTime(e.target.currentTime)}
+                  onLoadedMetadata={e => setVideoDuration(e.target.duration)}
+                />
+                {previewSubtitle?.text && <div className="subtitle-overlay">{previewSubtitle.text}</div>}
               </>
             ) : (
               <div className="placeholder">영상을 불러와주세요 😊</div>
             )}
           </div>
+
+          {/* ── 타임라인 바 ── */}
+          {videoDuration > 0 && (
+            <div className="timeline-wrap">
+              <div className="timeline-bar" ref={timelineRef} onClick={onTimelineClick}>
+                {/* 자막 블록들 */}
+                {subtitles.map((s, i) => {
+                  const isActive = i === focusedIdx || (currentTime >= s.start && currentTime < s.end);
+                  return (
+                    <div
+                      key={s.id}
+                      className={`tl-block ${isActive ? 'tl-active' : ''}`}
+                      style={{ left: timelinePx(s.start), width: `calc(${timelinePx(s.end)} - ${timelinePx(s.start)})` }}
+                      onMouseDown={e => onTimelineDragStart(e, i, 'move')}
+                      onTouchStart={e => onTimelineDragStart(e, i, 'move')}
+                      onClick={e => { e.stopPropagation(); setFocusedIdx(i); if(videoRef.current){ videoRef.current.currentTime=s.start; setCurrentTime(s.start); } }}
+                    >
+                      <div className="tl-handle tl-left"
+                        onMouseDown={e => { e.stopPropagation(); onTimelineDragStart(e, i, 'left'); }}
+                        onTouchStart={e => { e.stopPropagation(); onTimelineDragStart(e, i, 'left'); }}
+                      />
+                      <span className="tl-label">{s.text ? s.text.slice(0,10) : `#${i+1}`}</span>
+                      <div className="tl-handle tl-right"
+                        onMouseDown={e => { e.stopPropagation(); onTimelineDragStart(e, i, 'right'); }}
+                        onTouchStart={e => { e.stopPropagation(); onTimelineDragStart(e, i, 'right'); }}
+                      />
+                    </div>
+                  );
+                })}
+                {/* 플레이헤드 */}
+                <div className="tl-playhead" style={{ left: timelinePx(currentTime) }} />
+              </div>
+              <div className="tl-time-row">
+                <span>{secondsToTimecode(0)}</span>
+                <span>{secondsToTimecode(videoDuration/2)}</span>
+                <span>{secondsToTimecode(videoDuration)}</span>
+              </div>
+            </div>
+          )}
+
           <div className="video-controls">
             <button onClick={() => seekFrames(-5)}>-5F</button>
             <button onClick={() => seekFrames(-1)}>-1F</button>
@@ -280,37 +364,34 @@ function App() {
           <div className="time-display">{secondsToTimecode(currentTime)}</div>
         </section>
 
+        {/* ── 자막 패널 ── */}
         <section className="subtitle-panel" ref={subtitlePanelRef}>
+          {/* 탭 */}
+          <div className="panel-tabs">
+            <button className={`panel-tab ${panelView==='card' ? 'active' : ''}`} onClick={() => setPanelView('card')}>📋 카드 뷰</button>
+            <button className={`panel-tab ${panelView==='script' ? 'active' : ''}`} onClick={() => setPanelView('script')}>📝 스크립트 뷰</button>
+            {subtitles.length > 0 && (
+              <button className="add-inline-btn" onClick={addSubAtCurrentTime}>＋ 자막 추가</button>
+            )}
+          </div>
+
           {subtitles.length === 0 && (
             <button className="add-btn" onClick={() => {
-              setSubtitles([{ id: 'init', start: currentTime, end: currentTime + DEFAULT_DURATION, text: '' }]);
+              setSubtitles([{ id:'init', start:currentTime, end:currentTime+DEFAULT_DURATION, text:'' }]);
               setTimeout(() => { textareaRefs.current[0]?.focus(); setFocusedIdx(0); }, 50);
             }}>+ 첫 자막 추가</button>
           )}
-          {subtitles.length > 0 && (
-            <button className="add-btn" onClick={() => {
-              // currentTime 기준으로 자막 삽입, start/end 겹치지 않게 정렬
-              const newSub = { id: `add-${Date.now()}`, start: currentTime, end: currentTime + DEFAULT_DURATION, text: '' };
-              const next = [...subtitles, newSub].sort((a, b) => a.start - b.start);
-              const newIdx = next.findIndex(s => s.id === newSub.id);
-              setSubtitles(next);
-              setTimeout(() => { textareaRefs.current[newIdx]?.focus(); setFocusedIdx(newIdx); }, 50);
-            }}>+ 현재 위치에 자막 추가 ({secondsToTimecode(currentTime)})</button>
-          )}
-          {subtitles.map((s, i) => {
-            const duration = s.end - s.start;
-            const isTooLong = s.text.length / duration > MAX_CPS;
-            const isActive = isPlaying
-              ? (currentTime >= s.start && currentTime < s.end)
-              : i === focusedIdx;
+
+          {/* ── 카드 뷰 ── */}
+          {panelView === 'card' && subtitles.map((s, i) => {
+            const dur = s.end - s.start;
+            const isTooLong = s.text.length / dur > MAX_CPS;
+            const isActive = isPlaying ? (currentTime >= s.start && currentTime < s.end) : i === focusedIdx;
             return (
-              <div
-                key={s.id}
-                ref={el => clipRefs.current[i] = el}
-                className={`clip ${isActive ? 'active' : ''} ${isTooLong ? 'warning-red' : ''}`}
-              >
+              <div key={s.id} ref={el => clipRefs.current[i] = el}
+                className={`clip ${isActive ? 'active' : ''} ${isTooLong ? 'warning-red' : ''}`}>
                 <div className="clip-header">
-                  <span>#{i + 1} {secondsToTimecode(s.start)} → {secondsToTimecode(s.end)}</span>
+                  <span>#{i+1} {secondsToTimecode(s.start)} → {secondsToTimecode(s.end)}</span>
                   <div className="clip-btns">
                     <button onClick={() => adjustFrames(i, -10)}>-10F</button>
                     <button onClick={() => adjustFrames(i, 10)}>+10F</button>
@@ -320,24 +401,50 @@ function App() {
                 <textarea
                   ref={el => textareaRefs.current[i] = el}
                   value={s.text}
-                  onChange={e => setSubtitles(subtitles.map(x => x.id === s.id ? { ...x, text: e.target.value } : x))}
+                  onChange={e => setSubtitles(subtitles.map(x => x.id===s.id ? {...x,text:e.target.value} : x))}
                   onKeyDown={e => handleKeyDown(e, i)}
                   onFocus={() => {
                     setFocusedIdx(i);
-                    if (videoRef.current) {
-                      videoRef.current.currentTime = s.start;
-                      setCurrentTime(s.start);
-                    }
+                    if (videoRef.current) { videoRef.current.currentTime = s.start; setCurrentTime(s.start); }
                   }}
                   placeholder="자막 입력..."
                 />
               </div>
             );
           })}
+
+          {/* ── 스크립트 뷰 ── */}
+          {panelView === 'script' && (
+            <div className="script-view">
+              {subtitles.map((s, i) => {
+                const isActive = isPlaying ? (currentTime >= s.start && currentTime < s.end) : i === focusedIdx;
+                return (
+                  <div key={s.id} ref={el => clipRefs.current[i] = el}
+                    className={`script-line ${isActive ? 'active' : ''}`}>
+                    <span className="script-tc" onClick={() => {
+                      setFocusedIdx(i);
+                      if (videoRef.current) { videoRef.current.currentTime = s.start; setCurrentTime(s.start); }
+                    }}>{secondsToTimecode(s.start)}</span>
+                    <textarea
+                      ref={el => textareaRefs.current[i] = el}
+                      className="script-textarea"
+                      value={s.text}
+                      onChange={e => setSubtitles(subtitles.map(x => x.id===s.id ? {...x,text:e.target.value} : x))}
+                      onKeyDown={e => handleKeyDown(e, i)}
+                      onFocus={() => {
+                        setFocusedIdx(i);
+                        if (videoRef.current) { videoRef.current.currentTime = s.start; setCurrentTime(s.start); }
+                      }}
+                      placeholder="자막 입력..."
+                      rows={1}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
       </main>
     </div>
   );
 }
-
-export default App;
