@@ -14,10 +14,15 @@ html, body {
 }
 
 .app-root {
-  position: fixed; top: 0; left: 0; width: 100%;
+  position: fixed;
+  top: var(--app-offset, 0);
+  left: 0;
+  width: 100%;
   height: var(--app-height, 100vh);
-  top: var(--app-top, 0);
-  display: flex; flex-direction: column; background: white;
+  display: flex;
+  flex-direction: column;
+  background: white;
+  overflow: hidden;
 }
 
 /* 2. 상단바 — safe-area-inset-top으로 standalone PWA 상태바 대응 */
@@ -107,9 +112,47 @@ html, body {
 }
 
 @media (max-width: 800px) {
-  .app-main { flex-direction: column; }
-  .video-panel { flex-shrink: 0; background: white; border-bottom: 1px solid var(--border); z-index: 50; padding: 10px; }
-  .subtitle-panel { flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 100px; }
+  .app-main {
+    flex-direction: column;
+    overflow: hidden;
+    height: 100%;
+  }
+
+  /* 영상 패널: 상단 고정, 내용에 맞게 줄어듦 */
+  .video-panel {
+    flex-shrink: 0;
+    background: white;
+    border-bottom: 1px solid var(--border);
+    z-index: 50;
+    padding: 8px 10px 6px;
+  }
+
+  /* 영상 비율 모바일에서 좀 더 작게 */
+  .video-panel .video-container {
+    aspect-ratio: 16/9;
+    max-height: 32vh;
+  }
+
+  /* 타임라인, 컨트롤러 간격 줄이기 */
+  .video-panel .tl-overview-wrap { padding: 4px 6px 2px; }
+  .video-panel .tl-zoom-wrap { padding: 2px 6px 0; }
+  .video-panel .video-controls { margin-top: 6px; gap: 6px; }
+  .video-panel .video-controls button { padding: 5px 10px; font-size: 11px; }
+  .video-panel .time-display { margin-top: 3px; font-size: 12px; }
+
+  /* 자막 패널: 나머지 공간 채우면서 스크롤 */
+  .subtitle-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 0 env(safe-area-inset-bottom, 20px);
+    -webkit-overflow-scrolling: touch;
+    min-height: 0;
+  }
+
+  /* 모바일 카드뷰 패딩 줄이기 */
+  .subtitle-panel .clip { padding: 10px 12px; margin-bottom: 8px; }
+  .subtitle-panel > .clip,
+  .subtitle-panel > .add-btn { margin-left: 10px; margin-right: 10px; }
 }
 
 /* 6. 비디오 */

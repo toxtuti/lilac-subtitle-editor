@@ -75,8 +75,10 @@ export default function App() {
     const vvp = window.visualViewport;
     if (!vvp) return;
     const onVC = () => {
+      // 키보드 올라와도 app-root 높이를 visualViewport 기준으로 고정
       document.documentElement.style.setProperty('--app-height', `${vvp.height}px`);
-      window.scrollTo(0,0);
+      document.documentElement.style.setProperty('--app-offset', `${vvp.offsetTop}px`);
+      window.scrollTo(0, 0);
     };
     vvp.addEventListener('resize', onVC);
     vvp.addEventListener('scroll', onVC);
