@@ -324,6 +324,7 @@ export default function App() {
                 const t = Math.max(0, Math.min(videoDuration, (e.clientX - rect.left) / rect.width * videoDuration));
                 if (videoRef.current) { videoRef.current.currentTime = t; setCurrentTime(t); }
               }}>
+                <div className="tl-overview-progress" style={{ width: timelinePx(currentTime) }} />
                 {subtitles.map((s, i) => (
                   <div key={s.id} className={"tl-ov-block" + (i === focusedIdx ? " tl-active" : "")}
                     style={{ left: timelinePx(s.start), width: `calc(${timelinePx(s.end)} - ${timelinePx(s.start)})` }}
