@@ -20,16 +20,11 @@ html, body {
   display: flex; flex-direction: column; background: white;
 }
 
-/* 2. 상단바 */
+/* 2. 상단바 — 원본 그대로 */
 .app-header {
-  flex-shrink: 0;
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px; border-bottom: 1px solid var(--border); z-index: 1000;
   background: white;
-  /* ✅ 드롭다운이 헤더 밖으로 나올 수 있게 */
-  overflow: visible;
-  z-index: 1000;
 }
 
 .app-brand { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
@@ -38,12 +33,22 @@ html, body {
   color: white; display: flex; align-items: center; justify-content: center;
   font-weight: bold; font-size: 14px; flex-shrink: 0;
 }
-.brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+/* 프로젝트명 + 저장상태 한 줄에 나란히 */
+.brand-text {
+  display: flex; flex-direction: row; align-items: center;
+  gap: 6px; min-width: 0; flex: 1;
+}
 .project-name {
   margin: 0; font-size: 15px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex-shrink: 1;
 }
-.save-status { font-size: 10px; font-weight: 500; transition: color 0.3s; }
+.save-status {
+  font-size: 10px; font-weight: 500;
+  white-space: nowrap; flex-shrink: 0;
+  transition: color 0.3s;
+}
 .save-status.saved { color: #aaa; }
 .save-status.unsaved { color: #ff4d4d; }
 
@@ -56,33 +61,21 @@ html, body {
 .primary-button { background: var(--lilac) !important; color: white !important; border: none !important; font-weight: bold; }
 .secondary-button { background: white; }
 
-/* 3. 드롭다운 — position: absolute, 헤더 기준으로 아래로 */
-.dropdown-wrap {
-  position: relative;
-}
-
+/* 3. 드롭다운 — 원본 구조 그대로 */
+.dropdown-container { position: relative; }
 .dropdown-menu {
-  position: absolute;
-  top: calc(100% + 6px); /* 버튼 바로 아래 */
-  right: 0;
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  display: flex; flex-direction: column;
-  min-width: 180px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.13);
-  z-index: 9999;
-  overflow: hidden;
+  position: absolute; top: calc(100% + 8px); right: 0;
+  background: white; border: 1px solid var(--border); border-radius: 12px;
+  display: flex; flex-direction: column; min-width: 180px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 2000; overflow: hidden;
 }
-
 .menu-item {
   padding: 12px 14px; font-size: 13px; border: none; background: none;
-  text-align: left; cursor: pointer; border-bottom: 1px solid #f5f5f5;
+  text-align: left; cursor: pointer; border-bottom: 1px solid #fafafa;
   display: flex; flex-direction: column; gap: 2px;
-  -webkit-tap-highlight-color: transparent;
 }
 .menu-item:last-child { border-bottom: none; }
-.menu-item:active { background: #fdfcff; color: var(--lilac); }
+.menu-item:hover { background: #fdfcff; color: var(--lilac); }
 .menu-item.reset { color: #ff4d4d; }
 .menu-sub { font-size: 10px; color: #bbb; font-weight: normal; }
 
@@ -137,20 +130,14 @@ video { width: 100%; height: 100%; object-fit: contain; }
   background: rgba(0, 0, 0, 0.6);
   color: white;
   font-size: clamp(13px, 2.5vw, 20px);
-  font-weight: 500;
-  padding: 6px 14px;
-  border-radius: 6px;
-  text-align: center;
-  white-space: pre-wrap;
-  max-width: 85%;
-  line-height: 1.5;
-  pointer-events: none;
+  font-weight: 500; padding: 6px 14px;
+  border-radius: 6px; text-align: center;
+  white-space: pre-wrap; max-width: 85%;
+  line-height: 1.5; pointer-events: none;
 }
 
 /* 8. 컨트롤러 */
-.video-controls {
-  display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px;
-}
+.video-controls { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; }
 .video-controls button {
   padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
   background: white; font-size: 11px; font-weight: bold; cursor: pointer;

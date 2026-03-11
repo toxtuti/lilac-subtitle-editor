@@ -186,31 +186,27 @@ function App() {
 
       {toast && <div className="toast">{toast}</div>}
 
+      {/* 원본 헤더 구조 그대로 유지 */}
       <header className="app-header" onClick={(e) => e.stopPropagation()}>
         <div className="app-brand">
           <div className="app-logo">L</div>
+          {/* 프로젝트명 + 저장상태 한 줄로 */}
           <div className="brand-text">
             <h1 className="project-name">{projectName}</h1>
             <span className={`save-status ${saveStatus}`}>
               {saveStatus === 'saved'
-                ? `✅ 저장됨${lastSavedTime ? ` ${formatLastSaved()}` : ''}`
-                : '🔴 저장 중...'}
+                ? `✅${lastSavedTime ? ` ${formatLastSaved()}` : ''}`
+                : '🔴'}
             </span>
           </div>
         </div>
 
         <div className="header-actions">
-
-          {/* 메뉴 드롭다운 */}
-          <div className="dropdown-wrap">
-            <button
-              className="secondary-button"
-              onClick={(e) => { e.stopPropagation(); setIsMenuOpen(v => !v); setIsSaveOpen(false); }}
-            >
-              📂 메뉴
-            </button>
+          {/* 원본 dropdown-container 구조 그대로 */}
+          <div className="dropdown-container">
+            <button className="secondary-button" onClick={() => { setIsMenuOpen(!isMenuOpen); setIsSaveOpen(false); }}>📂 메뉴</button>
             {isMenuOpen && (
-              <div className="dropdown-menu" onClick={(e) => e.stopPropagation()}>
+              <div className="dropdown-menu">
                 <input type="file" id="v" hidden onChange={e => {
                   setVideoUrl(URL.createObjectURL(e.target.files[0]));
                   closeAll();
@@ -246,16 +242,10 @@ function App() {
             )}
           </div>
 
-          {/* 저장 드롭다운 */}
-          <div className="dropdown-wrap">
-            <button
-              className="primary-button"
-              onClick={(e) => { e.stopPropagation(); setIsSaveOpen(v => !v); setIsMenuOpen(false); }}
-            >
-              💾 저장
-            </button>
+          <div className="dropdown-container">
+            <button className="primary-button" onClick={() => { setIsSaveOpen(!isSaveOpen); setIsMenuOpen(false); }}>💾 저장</button>
             {isSaveOpen && (
-              <div className="dropdown-menu" onClick={(e) => e.stopPropagation()}>
+              <div className="dropdown-menu">
                 <button className="menu-item" onClick={() => {
                   const a = document.createElement('a');
                   a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
@@ -282,7 +272,6 @@ function App() {
               </div>
             )}
           </div>
-
         </div>
       </header>
 
