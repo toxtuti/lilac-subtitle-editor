@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 
-const DEFAULT_DURATION = 2.5; 
+const DEFAULT_DURATION = 2.5;
 const FPS = 24;
 const STORAGE_KEY = 'subtitleEditor_subtitles_v1';
 const MAX_CPS = 15;
-const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5분마다 자동 JSON 다운로드
+const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
 
 function secondsToTimecode(totalSeconds) {
   if (Number.isNaN(totalSeconds) || totalSeconds == null) return '00:00:00:00';
@@ -48,6 +48,28 @@ function parseSRT(text) {
   }).sort((a, b) => a.start - b.start);
 }
 
+// ✅ 드롭다운 위치를 버튼 기준으로 동적 계산하는 컴포넌트
+function Dropdown({ triggerRef, isOpen, children }) {
+  const [style, setStyle] = useState({});
+
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setStyle({
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, [isOpen, triggerRef]);
+
+  if (!isOpen) return null;
+  return (
+    <div className="dropdown-menu" style={style}>
+      {children}
+    </div>
+  );
+}
+
 function App() {
   const [videoUrl, setVideoUrl] = useState(null);
   const [subtitles, setSubtitles] = useState([]);
@@ -56,16 +78,23 @@ function App() {
   const [projectName, setProjectName] = useState('vlog_2026-03-09');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSaveOpen, setIsSaveOpen] = useState(false);
-
-  // ✅ 저장 상태
-  const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'unsaved'
+  const [saveStatus, setSaveStatus] = useState('saved');
   const [lastSavedTime, setLastSavedTime] = useState(null);
-  const isFirstLoad = useRef(true);
+  const [toast, setToast] = useState(null); // 토스트 알림
 
+  const isFirstLoad = useRef(true);
   const videoRef = useRef(null);
   const textareaRefs = useRef([]);
+  const menuBtnRef = useRef(null);
+  const saveBtnRef = useRef(null);
 
-  // ✨ 키보드 밀림 방지 로직
+  // 토스트 메시지 표시
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  // ✨ 키보드 밀림 방지
   useEffect(() => {
     const vvp = window.visualViewport;
     if (!vvp) return;
@@ -89,7 +118,7 @@ function App() {
     if (raw) setSubtitles(JSON.parse(raw));
   }, []);
 
-  // 자막 변경 시 로컬스토리지 저장 + 저장 상태 표시
+  // 자막 변경 시 로컬스토리지 저장 + 상태 표시
   useEffect(() => {
     if (isFirstLoad.current) {
       isFirstLoad.current = false;
@@ -104,20 +133,24 @@ function App() {
     return () => clearTimeout(timer);
   }, [subtitles]);
 
-  // JSON 다운로드 함수
-  const downloadJson = useCallback(() => {
+  // JSON 파일로 저장
+  const downloadJson = useCallback((isAuto = false) => {
     if (subtitles.length === 0) return;
     const a = document.createElement('a');
     const timestamp = new Date().toLocaleTimeString('ko-KR').replace(/:/g, '-');
+    const filename = isAuto
+      ? `${projectName}_autosave_${timestamp}.json`
+      : `${projectName}.json`;
     a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
-    a.download = `${projectName}_autosave_${timestamp}.json`;
+    a.download = filename;
     a.click();
+    if (isAuto) showToast('💾 자동저장 완료! 파일을 확인해줘 😊');
   }, [projectName, subtitles]);
 
   // 5분마다 자동 JSON 다운로드
   useEffect(() => {
     const interval = setInterval(() => {
-      if (subtitles.length > 0) downloadJson();
+      if (subtitles.length > 0) downloadJson(true);
     }, AUTO_SAVE_INTERVAL);
     return () => clearInterval(interval);
   }, [downloadJson, subtitles.length]);
@@ -196,6 +229,10 @@ function App() {
 
   return (
     <div className="app-root" onClick={() => { setIsMenuOpen(false); setIsSaveOpen(false); }}>
+
+      {/* 토스트 알림 */}
+      {toast && <div className="toast">{toast}</div>}
+
       <header className="app-header" onClick={(e) => e.stopPropagation()}>
         <div className="app-brand">
           <div className="app-logo">L</div>
@@ -208,41 +245,80 @@ function App() {
             </span>
           </div>
         </div>
+
         <div className="header-actions">
+          {/* 메뉴 드롭다운 */}
           <div className="dropdown-container">
-            <button className="secondary-button" onClick={() => { setIsMenuOpen(!isMenuOpen); setIsSaveOpen(false); }}>📂 메뉴</button>
-            {isMenuOpen && (
-              <div className="dropdown-menu">
-                <input type="file" id="v" hidden onChange={e => setVideoUrl(URL.createObjectURL(e.target.files[0]))} />
-                <label htmlFor="v" className="menu-item">📹 영상 불러오기</label>
-                <input type="file" id="s" hidden accept=".srt" onChange={async e => setSubtitles(parseSRT(await e.target.files[0].text()))} />
-                <label htmlFor="s" className="menu-item">📜 SRT 불러오기</label>
-                <input type="file" id="j" hidden accept=".json" onChange={async e => {
-                  const data = JSON.parse(await e.target.files[0].text());
-                  setProjectName(data.projectName); setSubtitles(data.subtitles);
-                }} />
-                <label htmlFor="j" className="menu-item">📁 JSON 불러오기</label>
-                <button className="menu-item reset" onClick={() => setSubtitles([])}>🔄 초기화</button>
-              </div>
-            )}
+            <button
+              ref={menuBtnRef}
+              className="secondary-button"
+              onClick={() => { setIsMenuOpen(!isMenuOpen); setIsSaveOpen(false); }}
+            >
+              📂 메뉴
+            </button>
+            <Dropdown triggerRef={menuBtnRef} isOpen={isMenuOpen}>
+              <input type="file" id="v" hidden onChange={e => {
+                setVideoUrl(URL.createObjectURL(e.target.files[0]));
+                setIsMenuOpen(false);
+              }} />
+              <label htmlFor="v" className="menu-item">📹 영상 불러오기</label>
+
+              <input type="file" id="s" hidden accept=".srt" onChange={async e => {
+                setSubtitles(parseSRT(await e.target.files[0].text()));
+                setIsMenuOpen(false);
+                showToast('📜 SRT 불러오기 완료!');
+              }} />
+              <label htmlFor="s" className="menu-item">📜 SRT 불러오기</label>
+
+              <input type="file" id="j" hidden accept=".json" onChange={async e => {
+                const data = JSON.parse(await e.target.files[0].text());
+                setProjectName(data.projectName);
+                setSubtitles(data.subtitles);
+                setIsMenuOpen(false);
+                showToast(`📁 "${data.projectName}" 불러오기 완료!`);
+              }} />
+              <label htmlFor="j" className="menu-item">📁 JSON 불러오기<span className="menu-sub">다른 기기에서 이어서 작업</span></label>
+
+              <button className="menu-item reset" onClick={() => {
+                if (window.confirm('자막을 모두 초기화할까요?')) {
+                  setSubtitles([]);
+                  setIsMenuOpen(false);
+                }
+              }}>🔄 초기화</button>
+            </Dropdown>
           </div>
+
+          {/* 저장 드롭다운 */}
           <div className="dropdown-container">
-            <button className="primary-button" onClick={() => { setIsSaveOpen(!isSaveOpen); setIsMenuOpen(false); }}>💾 저장</button>
-            {isSaveOpen && (
-              <div className="dropdown-menu">
-                <button className="menu-item" onClick={() => {
-                  const a = document.createElement('a');
-                  a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
-                  a.download = `${projectName}.json`; a.click();
-                }}>📁 JSON 저장</button>
-                <button className="menu-item" onClick={() => {
-                  const a = document.createElement('a');
-                  const srt = subtitles.map((s, i) => `${i+1}\n${secondsToSrtTime(s.start)} --> ${secondsToSrtTime(s.end)}\n${s.text}`).join('\n\n');
-                  a.href = URL.createObjectURL(new Blob([srt], { type: 'text/plain' }));
-                  a.download = `${projectName}.srt`; a.click();
-                }}>📝 SRT 내보내기</button>
-              </div>
-            )}
+            <button
+              ref={saveBtnRef}
+              className="primary-button"
+              onClick={() => { setIsSaveOpen(!isSaveOpen); setIsMenuOpen(false); }}
+            >
+              💾 저장
+            </button>
+            <Dropdown triggerRef={saveBtnRef} isOpen={isSaveOpen}>
+              <button className="menu-item" onClick={() => {
+                downloadJson(false);
+                setIsSaveOpen(false);
+                showToast('📁 JSON 저장 완료! iCloud/Files에서 확인해줘 😊');
+              }}>
+                📁 JSON으로 저장
+                <span className="menu-sub">다른 기기에서 이어서 쓸 때</span>
+              </button>
+              <button className="menu-item" onClick={() => {
+                const a = document.createElement('a');
+                const srt = subtitles.map((s, i) => `${i + 1}\n${secondsToSrtTime(s.start)} --> ${secondsToSrtTime(s.end)}\n${s.text}`).join('\n\n');
+                a.href = URL.createObjectURL(new Blob([srt], { type: 'text/plain' }));
+                a.download = `${projectName}.srt`;
+                a.click();
+                setIsSaveOpen(false);
+                showToast('📝 SRT 내보내기 완료!');
+              }}>
+                📝 SRT 내보내기
+                <span className="menu-sub">다빈치에 바로 가져다 쓸 때</span>
+              </button>
+            </Dropdown>
           </div>
         </div>
       </header>
@@ -278,16 +354,17 @@ function App() {
 
         <section className="subtitle-panel">
           {subtitles.length === 0 && (
-            <button className="add-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime + 2.5, text: '' }])}>+ 첫 자막 추가</button>
+            <button className="add-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime + 2.5, text: '' }])}>
+              + 첫 자막 추가
+            </button>
           )}
           {subtitles.map((s, i) => {
             const duration = s.end - s.start;
             const isTooLong = s.text.length / duration > MAX_CPS;
-
             return (
               <div key={s.id} className={`clip ${currentTime >= s.start && currentTime <= s.end ? 'active' : ''} ${isTooLong ? 'warning-red' : ''}`}>
                 <div className="clip-header">
-                  <span>#{i+1} {secondsToTimecode(s.start)}</span>
+                  <span>#{i + 1} {secondsToTimecode(s.start)}</span>
                   <div className="clip-btns">
                     <button onClick={() => adjustFrames(i, -10)}>-10F</button>
                     <button onClick={() => adjustFrames(i, 10)}>+10F</button>
