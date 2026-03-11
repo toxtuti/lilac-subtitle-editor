@@ -335,7 +335,7 @@ function App() {
                   value={s.text}
                   onChange={e => setSubtitles(subtitles.map(x => x.id === s.id ? { ...x, text: e.target.value } : x))}
                   onKeyDown={e => handleKeyDown(e, i)}
-                  onFocus={() => videoRef.current && (videoRef.current.currentTime = s.start)}
+                  onFocus={() => { if (videoRef.current) { videoRef.current.currentTime = s.start; setCurrentTime(s.start); } }}
                   placeholder="자막 입력..."
                 />
               </div>
