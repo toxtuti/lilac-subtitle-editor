@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 
-const DEFAULT_DURATION = 3; // 기본 자막 길이 3초
+const DEFAULT_DURATION = 3;
 const FPS = 24;
 const STORAGE_KEY = 'subtitleEditor_subtitles_v1';
-const MAX_CPS = 15;
+const MAX_CPS = 25;
 
 function secondsToTimecode(totalSeconds) {
   if (Number.isNaN(totalSeconds) || totalSeconds == null) return '00:00:00:00';
@@ -58,6 +58,7 @@ function App() {
   const [saveStatus, setSaveStatus] = useState('saved');
   const [lastSavedTime, setLastSavedTime] = useState(null);
   const [toast, setToast] = useState(null);
+  const [focusedIdx, setFocusedIdx] = useState(null);
 
   const isFirstLoad = useRef(true);
   const videoRef = useRef(null);
@@ -68,7 +69,6 @@ function App() {
     setTimeout(() => setToast(null), 2500);
   };
 
-  // ✨ 키보드 밀림 방지
   useEffect(() => {
     const vvp = window.visualViewport;
     if (!vvp) return;
@@ -86,13 +86,11 @@ function App() {
     };
   }, []);
 
-  // 초기 로드
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) setSubtitles(JSON.parse(raw));
   }, []);
 
-  // 자막 변경 시 브라우저 자동저장
   useEffect(() => {
     if (isFirstLoad.current) {
       isFirstLoad.current = false;
@@ -107,7 +105,6 @@ function App() {
     return () => clearTimeout(timer);
   }, [subtitles]);
 
-  // 탭 닫기 경고
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (subtitles.length > 0) {
@@ -119,12 +116,12 @@ function App() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [subtitles.length]);
 
-  // ✅ 영상 재생 중 현재 자막 끝나면 다음 자막으로 자동 포커스
   useEffect(() => {
     if (!isPlaying) return;
     const activeIdx = subtitles.findIndex(s => currentTime >= s.start && currentTime <= s.end);
-    if (activeIdx !== -1 && textareaRefs.current[activeIdx]) {
-      textareaRefs.current[activeIdx].focus();
+    if (activeIdx !== -1) {
+      setFocusedIdx(activeIdx);
+      textareaRefs.current[activeIdx]?.focus();
     }
   }, [currentTime, isPlaying, subtitles]);
 
@@ -158,30 +155,43 @@ function App() {
   const handleKeyDown = (e, idx) => {
     if (e.nativeEvent.isComposing) return;
     const { selectionStart, value } = e.target;
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const target = subtitles[idx];
-      const mid = target.start + (target.end - target.start) / 2;
+
+      // ✅ 엔터: 현재 자막 끝 시간부터 DEFAULT_DURATION 길이의 새 자막 추가
+      const newStart = target.end;
+      const newEnd = newStart + DEFAULT_DURATION;
       const next = [...subtitles];
-      next.splice(idx, 1,
-        { ...target, end: mid, text: value.substring(0, selectionStart).trim() },
-        { id: `n-${Date.now()}`, start: mid, end: target.end, text: value.substring(selectionStart).trim() }
-      );
+      next.splice(idx + 1, 0, {
+        id: `n-${Date.now()}`,
+        start: newStart,
+        end: newEnd,
+        text: ''
+      });
       setSubtitles(next);
-      setTimeout(() => textareaRefs.current[idx + 1]?.focus(), 50);
+      setTimeout(() => {
+        textareaRefs.current[idx + 1]?.focus();
+        setFocusedIdx(idx + 1);
+      }, 50);
     }
-    if (e.key === 'Backspace' && selectionStart === 0 && idx > 0) {
+
+    if (e.key === 'Backspace' && selectionStart === 0 && value === '' && idx > 0) {
+      // ✅ Backspace: 빈 자막일 때만 삭제하고 이전으로 이동
       e.preventDefault();
-      const prev = subtitles[idx - 1];
-      const curr = subtitles[idx];
-      const next = [...subtitles];
-      next.splice(idx - 1, 2, { ...prev, end: curr.end, text: (prev.text + ' ' + curr.text).trim() });
+      const next = subtitles.filter((_, i) => i !== idx);
       setSubtitles(next);
-      setTimeout(() => textareaRefs.current[idx - 1]?.focus(), 50);
+      setTimeout(() => {
+        textareaRefs.current[idx - 1]?.focus();
+        setFocusedIdx(idx - 1);
+      }, 50);
     }
   };
 
-  const activeSubtitle = subtitles.find(s => currentTime >= s.start && currentTime <= s.end);
+  const previewSubtitle = focusedIdx !== null
+    ? subtitles[focusedIdx]
+    : subtitles.find(s => currentTime >= s.start && currentTime <= s.end);
 
   const formatLastSaved = () => {
     if (!lastSavedTime) return '';
@@ -218,14 +228,12 @@ function App() {
                   closeAll();
                 }} />
                 <label htmlFor="v" className="menu-item">📹 영상 불러오기</label>
-
                 <input type="file" id="s" hidden accept=".srt" onChange={async e => {
                   setSubtitles(parseSRT(await e.target.files[0].text()));
                   closeAll();
                   showToast('📜 SRT 불러오기 완료!');
                 }} />
                 <label htmlFor="s" className="menu-item">📜 SRT 불러오기</label>
-
                 <input type="file" id="j" hidden accept=".json" onChange={async e => {
                   const data = JSON.parse(await e.target.files[0].text());
                   setProjectName(data.projectName);
@@ -237,7 +245,6 @@ function App() {
                   📁 JSON 불러오기
                   <span className="menu-sub">다른 기기에서 이어서 작업</span>
                 </label>
-
                 <button className="menu-item reset" onClick={() => {
                   if (window.confirm('자막을 모두 초기화할까요?')) {
                     setSubtitles([]);
@@ -292,8 +299,8 @@ function App() {
                   playsInline
                   onTimeUpdate={e => setCurrentTime(e.target.currentTime)}
                 />
-                {activeSubtitle?.text && (
-                  <div className="subtitle-overlay">{activeSubtitle.text}</div>
+                {previewSubtitle?.text && (
+                  <div className="subtitle-overlay">{previewSubtitle.text}</div>
                 )}
               </>
             ) : (
@@ -312,17 +319,20 @@ function App() {
 
         <section className="subtitle-panel">
           {subtitles.length === 0 && (
-            <button className="add-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime + DEFAULT_DURATION, text: '' }])}>
+            <button className="add-btn" onClick={() => {
+              setSubtitles([{ id: 'init', start: currentTime, end: currentTime + DEFAULT_DURATION, text: '' }]);
+              setTimeout(() => { textareaRefs.current[0]?.focus(); setFocusedIdx(0); }, 50);
+            }}>
               + 첫 자막 추가
             </button>
           )}
           {subtitles.map((s, i) => {
             const duration = s.end - s.start;
             const isTooLong = s.text.length / duration > MAX_CPS;
+            const isActive = i === focusedIdx || (focusedIdx === null && currentTime >= s.start && currentTime <= s.end);
             return (
-              <div key={s.id} className={`clip ${currentTime >= s.start && currentTime <= s.end ? 'active' : ''} ${isTooLong ? 'warning-red' : ''}`}>
+              <div key={s.id} className={`clip ${isActive ? 'active' : ''} ${isTooLong ? 'warning-red' : ''}`}>
                 <div className="clip-header">
-                  {/* ✅ 시작 ~ 끝 타임코드 둘 다 표시 */}
                   <span>#{i + 1} {secondsToTimecode(s.start)} → {secondsToTimecode(s.end)}</span>
                   <div className="clip-btns">
                     <button onClick={() => adjustFrames(i, -10)}>-10F</button>
@@ -335,7 +345,13 @@ function App() {
                   value={s.text}
                   onChange={e => setSubtitles(subtitles.map(x => x.id === s.id ? { ...x, text: e.target.value } : x))}
                   onKeyDown={e => handleKeyDown(e, i)}
-                  onFocus={() => { if (videoRef.current) { videoRef.current.currentTime = s.start; setCurrentTime(s.start); } }}
+                  onFocus={() => {
+                    setFocusedIdx(i);
+                    if (videoRef.current) {
+                      videoRef.current.currentTime = s.start;
+                      setCurrentTime(s.start);
+                    }
+                  }}
                   placeholder="자막 입력..."
                 />
               </div>
