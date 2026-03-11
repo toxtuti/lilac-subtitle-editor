@@ -4,7 +4,7 @@ import './App.css';
 const DEFAULT_DURATION = 2.5; 
 const FPS = 24;
 const STORAGE_KEY = 'subtitleEditor_subtitles_v1';
-const MAX_CPS = 15; // 💡 초당 15자 이상이면 빨간색 경고!
+const MAX_CPS = 15;
 
 function secondsToTimecode(totalSeconds) {
   if (Number.isNaN(totalSeconds) || totalSeconds == null) return '00:00:00:00';
@@ -59,7 +59,7 @@ function App() {
   const videoRef = useRef(null);
   const textareaRefs = useRef([]);
 
-  // ✨ 지은이의 필살기: 키보드 밀림 방지 로직 (수정 금지!)
+  // ✨ 키보드 밀림 방지 로직
   useEffect(() => {
     const vvp = window.visualViewport;
     if (!vvp) return;
@@ -139,6 +139,9 @@ function App() {
     }
   };
 
+  // 현재 시간에 해당하는 활성 자막
+  const activeSubtitle = subtitles.find(s => currentTime >= s.start && currentTime <= s.end);
+
   return (
     <div className="app-root" onClick={() => { setIsMenuOpen(false); setIsSaveOpen(false); }}>
       <header className="app-header" onClick={(e) => e.stopPropagation()}>
@@ -189,8 +192,22 @@ function App() {
         <section className="video-panel">
           <div className="video-container">
             {videoUrl ? (
-              <video ref={videoRef} src={videoUrl} playsInline onTimeUpdate={e => setCurrentTime(e.target.currentTime)} />
-            ) : <div className="placeholder">영상을 불러와주세요 😊</div>}
+              <>
+                <video
+                  ref={videoRef}
+                  src={videoUrl}
+                  playsInline
+                  onTimeUpdate={e => setCurrentTime(e.target.currentTime)}
+                />
+                {activeSubtitle?.text && (
+                  <div className="subtitle-overlay">
+                    {activeSubtitle.text}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="placeholder">영상을 불러와주세요 😊</div>
+            )}
           </div>
           <div className="video-controls">
             <button onClick={() => seekFrames(-5)}>-5F</button>
