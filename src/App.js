@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 
 const DEFAULT_DURATION = 2.5; 
 const FPS = 24;
 const STORAGE_KEY = 'subtitleEditor_subtitles_v1';
 const MAX_CPS = 15;
+const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5분마다 자동 JSON 다운로드
 
 function secondsToTimecode(totalSeconds) {
   if (Number.isNaN(totalSeconds) || totalSeconds == null) return '00:00:00:00';
@@ -56,6 +57,11 @@ function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSaveOpen, setIsSaveOpen] = useState(false);
 
+  // ✅ 저장 상태
+  const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'unsaved'
+  const [lastSavedTime, setLastSavedTime] = useState(null);
+  const isFirstLoad = useRef(true);
+
   const videoRef = useRef(null);
   const textareaRefs = useRef([]);
 
@@ -77,14 +83,56 @@ function App() {
     };
   }, []);
 
+  // 초기 로드
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) setSubtitles(JSON.parse(raw));
   }, []);
 
+  // 자막 변경 시 로컬스토리지 저장 + 저장 상태 표시
   useEffect(() => {
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      return;
+    }
+    setSaveStatus('unsaved');
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(subtitles));
+    const timer = setTimeout(() => {
+      setSaveStatus('saved');
+      setLastSavedTime(new Date());
+    }, 800);
+    return () => clearTimeout(timer);
   }, [subtitles]);
+
+  // JSON 다운로드 함수
+  const downloadJson = useCallback(() => {
+    if (subtitles.length === 0) return;
+    const a = document.createElement('a');
+    const timestamp = new Date().toLocaleTimeString('ko-KR').replace(/:/g, '-');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
+    a.download = `${projectName}_autosave_${timestamp}.json`;
+    a.click();
+  }, [projectName, subtitles]);
+
+  // 5분마다 자동 JSON 다운로드
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (subtitles.length > 0) downloadJson();
+    }, AUTO_SAVE_INTERVAL);
+    return () => clearInterval(interval);
+  }, [downloadJson, subtitles.length]);
+
+  // 탭 닫기 경고
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (subtitles.length > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [subtitles.length]);
 
   const togglePlay = () => {
     if (videoRef.current) {
@@ -121,8 +169,8 @@ function App() {
       const target = subtitles[idx];
       const mid = target.start + (target.end - target.start) / 2;
       const next = [...subtitles];
-      next.splice(idx, 1, 
-        { ...target, end: mid, text: value.substring(0, selectionStart).trim() }, 
+      next.splice(idx, 1,
+        { ...target, end: mid, text: value.substring(0, selectionStart).trim() },
         { id: `n-${Date.now()}`, start: mid, end: target.end, text: value.substring(selectionStart).trim() }
       );
       setSubtitles(next);
@@ -139,19 +187,30 @@ function App() {
     }
   };
 
-  // 현재 시간에 해당하는 활성 자막
   const activeSubtitle = subtitles.find(s => currentTime >= s.start && currentTime <= s.end);
+
+  const formatLastSaved = () => {
+    if (!lastSavedTime) return '';
+    return lastSavedTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <div className="app-root" onClick={() => { setIsMenuOpen(false); setIsSaveOpen(false); }}>
       <header className="app-header" onClick={(e) => e.stopPropagation()}>
         <div className="app-brand">
           <div className="app-logo">L</div>
-          <h1 className="project-name">{projectName}</h1>
+          <div className="brand-text">
+            <h1 className="project-name">{projectName}</h1>
+            <span className={`save-status ${saveStatus}`}>
+              {saveStatus === 'saved'
+                ? `✅ 저장됨${lastSavedTime ? ` ${formatLastSaved()}` : ''}`
+                : '🔴 저장 중...'}
+            </span>
+          </div>
         </div>
         <div className="header-actions">
           <div className="dropdown-container">
-            <button className="secondary-button" onClick={() => setIsMenuOpen(!isMenuOpen)}>📂 메뉴</button>
+            <button className="secondary-button" onClick={() => { setIsMenuOpen(!isMenuOpen); setIsSaveOpen(false); }}>📂 메뉴</button>
             {isMenuOpen && (
               <div className="dropdown-menu">
                 <input type="file" id="v" hidden onChange={e => setVideoUrl(URL.createObjectURL(e.target.files[0]))} />
@@ -168,7 +227,7 @@ function App() {
             )}
           </div>
           <div className="dropdown-container">
-            <button className="primary-button" onClick={() => setIsSaveOpen(!isSaveOpen)}>💾 저장</button>
+            <button className="primary-button" onClick={() => { setIsSaveOpen(!isSaveOpen); setIsMenuOpen(false); }}>💾 저장</button>
             {isSaveOpen && (
               <div className="dropdown-menu">
                 <button className="menu-item" onClick={() => {
@@ -200,9 +259,7 @@ function App() {
                   onTimeUpdate={e => setCurrentTime(e.target.currentTime)}
                 />
                 {activeSubtitle?.text && (
-                  <div className="subtitle-overlay">
-                    {activeSubtitle.text}
-                  </div>
+                  <div className="subtitle-overlay">{activeSubtitle.text}</div>
                 )}
               </>
             ) : (
@@ -221,7 +278,7 @@ function App() {
 
         <section className="subtitle-panel">
           {subtitles.length === 0 && (
-            <button className="add-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime+2.5, text: '' }])}>+ 첫 자막 추가</button>
+            <button className="add-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime + 2.5, text: '' }])}>+ 첫 자막 추가</button>
           )}
           {subtitles.map((s, i) => {
             const duration = s.end - s.start;
@@ -237,10 +294,10 @@ function App() {
                     <button onClick={() => setSubtitles(subtitles.filter(x => x.id !== s.id))}>×</button>
                   </div>
                 </div>
-                <textarea 
+                <textarea
                   ref={el => textareaRefs.current[i] = el}
-                  value={s.text} 
-                  onChange={e => setSubtitles(subtitles.map(x => x.id === s.id ? {...x, text: e.target.value} : x))}
+                  value={s.text}
+                  onChange={e => setSubtitles(subtitles.map(x => x.id === s.id ? { ...x, text: e.target.value } : x))}
                   onKeyDown={e => handleKeyDown(e, i)}
                   onFocus={() => videoRef.current && (videoRef.current.currentTime = s.start)}
                   placeholder="자막 입력..."
