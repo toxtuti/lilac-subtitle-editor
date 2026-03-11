@@ -5,7 +5,6 @@ const DEFAULT_DURATION = 2.5;
 const FPS = 24;
 const STORAGE_KEY = 'subtitleEditor_subtitles_v1';
 const MAX_CPS = 15;
-const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
 
 function secondsToTimecode(totalSeconds) {
   if (Number.isNaN(totalSeconds) || totalSeconds == null) return '00:00:00:00';
@@ -48,7 +47,7 @@ function parseSRT(text) {
   }).sort((a, b) => a.start - b.start);
 }
 
-// ✅ 드롭다운 위치를 버튼 기준으로 동적 계산하는 컴포넌트
+// 드롭다운 위치를 버튼 기준으로 동적 계산
 function Dropdown({ triggerRef, isOpen, children }) {
   const [style, setStyle] = useState({});
 
@@ -80,7 +79,7 @@ function App() {
   const [isSaveOpen, setIsSaveOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState('saved');
   const [lastSavedTime, setLastSavedTime] = useState(null);
-  const [toast, setToast] = useState(null); // 토스트 알림
+  const [toast, setToast] = useState(null);
 
   const isFirstLoad = useRef(true);
   const videoRef = useRef(null);
@@ -88,7 +87,6 @@ function App() {
   const menuBtnRef = useRef(null);
   const saveBtnRef = useRef(null);
 
-  // 토스트 메시지 표시
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
@@ -118,7 +116,7 @@ function App() {
     if (raw) setSubtitles(JSON.parse(raw));
   }, []);
 
-  // 자막 변경 시 로컬스토리지 저장 + 상태 표시
+  // 자막 변경 시 브라우저에 자동저장 + 상태 표시
   useEffect(() => {
     if (isFirstLoad.current) {
       isFirstLoad.current = false;
@@ -132,28 +130,6 @@ function App() {
     }, 800);
     return () => clearTimeout(timer);
   }, [subtitles]);
-
-  // JSON 파일로 저장
-  const downloadJson = useCallback((isAuto = false) => {
-    if (subtitles.length === 0) return;
-    const a = document.createElement('a');
-    const timestamp = new Date().toLocaleTimeString('ko-KR').replace(/:/g, '-');
-    const filename = isAuto
-      ? `${projectName}_autosave_${timestamp}.json`
-      : `${projectName}.json`;
-    a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
-    a.download = filename;
-    a.click();
-    if (isAuto) showToast('💾 자동저장 완료! 파일을 확인해줘 😊');
-  }, [projectName, subtitles]);
-
-  // 5분마다 자동 JSON 다운로드
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (subtitles.length > 0) downloadJson(true);
-    }, AUTO_SAVE_INTERVAL);
-    return () => clearInterval(interval);
-  }, [downloadJson, subtitles.length]);
 
   // 탭 닫기 경고
   useEffect(() => {
@@ -230,7 +206,6 @@ function App() {
   return (
     <div className="app-root" onClick={() => { setIsMenuOpen(false); setIsSaveOpen(false); }}>
 
-      {/* 토스트 알림 */}
       {toast && <div className="toast">{toast}</div>}
 
       <header className="app-header" onClick={(e) => e.stopPropagation()}>
@@ -247,7 +222,6 @@ function App() {
         </div>
 
         <div className="header-actions">
-          {/* 메뉴 드롭다운 */}
           <div className="dropdown-container">
             <button
               ref={menuBtnRef}
@@ -277,7 +251,10 @@ function App() {
                 setIsMenuOpen(false);
                 showToast(`📁 "${data.projectName}" 불러오기 완료!`);
               }} />
-              <label htmlFor="j" className="menu-item">📁 JSON 불러오기<span className="menu-sub">다른 기기에서 이어서 작업</span></label>
+              <label htmlFor="j" className="menu-item">
+                📁 JSON 불러오기
+                <span className="menu-sub">다른 기기에서 이어서 작업</span>
+              </label>
 
               <button className="menu-item reset" onClick={() => {
                 if (window.confirm('자막을 모두 초기화할까요?')) {
@@ -288,7 +265,6 @@ function App() {
             </Dropdown>
           </div>
 
-          {/* 저장 드롭다운 */}
           <div className="dropdown-container">
             <button
               ref={saveBtnRef}
@@ -299,9 +275,12 @@ function App() {
             </button>
             <Dropdown triggerRef={saveBtnRef} isOpen={isSaveOpen}>
               <button className="menu-item" onClick={() => {
-                downloadJson(false);
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
+                a.download = `${projectName}.json`;
+                a.click();
                 setIsSaveOpen(false);
-                showToast('📁 JSON 저장 완료! iCloud/Files에서 확인해줘 😊');
+                showToast('📁 JSON 저장 완료!');
               }}>
                 📁 JSON으로 저장
                 <span className="menu-sub">다른 기기에서 이어서 쓸 때</span>
