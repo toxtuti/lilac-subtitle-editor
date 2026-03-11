@@ -287,6 +287,16 @@ function App() {
               setTimeout(() => { textareaRefs.current[0]?.focus(); setFocusedIdx(0); }, 50);
             }}>+ 첫 자막 추가</button>
           )}
+          {subtitles.length > 0 && (
+            <button className="add-btn" onClick={() => {
+              // currentTime 기준으로 자막 삽입, start/end 겹치지 않게 정렬
+              const newSub = { id: `add-${Date.now()}`, start: currentTime, end: currentTime + DEFAULT_DURATION, text: '' };
+              const next = [...subtitles, newSub].sort((a, b) => a.start - b.start);
+              const newIdx = next.findIndex(s => s.id === newSub.id);
+              setSubtitles(next);
+              setTimeout(() => { textareaRefs.current[newIdx]?.focus(); setFocusedIdx(newIdx); }, 50);
+            }}>+ 현재 위치에 자막 추가 ({secondsToTimecode(currentTime)})</button>
+          )}
           {subtitles.map((s, i) => {
             const duration = s.end - s.start;
             const isTooLong = s.text.length / duration > MAX_CPS;
