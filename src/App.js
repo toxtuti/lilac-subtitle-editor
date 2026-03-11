@@ -116,7 +116,7 @@ function App() {
   // ✅ 재생 중 currentTime 기준으로 자막 패널 자동 동기화
   useEffect(() => {
     if (!isPlaying) return;
-    const activeIdx = subtitles.findIndex(s => currentTime >= s.start && currentTime <= s.end);
+    const activeIdx = subtitles.findIndex(s => currentTime >= s.start && currentTime < s.end);
     if (activeIdx !== -1 && activeIdx !== lastActiveIdx.current) {
       lastActiveIdx.current = activeIdx;
       setFocusedIdx(activeIdx);
@@ -191,7 +191,7 @@ function App() {
   };
 
   // ✅ 미리보기: 항상 currentTime 기준, 자막 범위 밖이면 null
-  const previewSubtitle = subtitles.find(s => currentTime >= s.start && currentTime <= s.end) ?? null;
+  const previewSubtitle = subtitles.find(s => currentTime >= s.start && currentTime < s.end) ?? null;
 
   const formatLastSaved = () => {
     if (!lastSavedTime) return '';
@@ -299,7 +299,7 @@ function App() {
             const duration = s.end - s.start;
             const isTooLong = s.text.length / duration > MAX_CPS;
             const isActive = isPlaying
-              ? (currentTime >= s.start && currentTime <= s.end)
+              ? (currentTime >= s.start && currentTime < s.end)
               : i === focusedIdx;
             return (
               <div
