@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 
-const DEFAULT_DURATION = 2.5;
+const DEFAULT_DURATION = 3; // 기본 자막 길이 3초
 const FPS = 24;
 const STORAGE_KEY = 'subtitleEditor_subtitles_v1';
 const MAX_CPS = 15;
@@ -119,6 +119,15 @@ function App() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [subtitles.length]);
 
+  // ✅ 영상 재생 중 현재 자막 끝나면 다음 자막으로 자동 포커스
+  useEffect(() => {
+    if (!isPlaying) return;
+    const activeIdx = subtitles.findIndex(s => currentTime >= s.start && currentTime <= s.end);
+    if (activeIdx !== -1 && textareaRefs.current[activeIdx]) {
+      textareaRefs.current[activeIdx].focus();
+    }
+  }, [currentTime, isPlaying, subtitles]);
+
   const togglePlay = () => {
     if (videoRef.current) {
       if (isPlaying) videoRef.current.pause();
@@ -186,11 +195,9 @@ function App() {
 
       {toast && <div className="toast">{toast}</div>}
 
-      {/* 원본 헤더 구조 그대로 유지 */}
       <header className="app-header" onClick={(e) => e.stopPropagation()}>
         <div className="app-brand">
           <div className="app-logo">L</div>
-          {/* 프로젝트명 + 저장상태 한 줄로 */}
           <div className="brand-text">
             <h1 className="project-name">{projectName}</h1>
             <span className={`save-status ${saveStatus}`}>
@@ -202,7 +209,6 @@ function App() {
         </div>
 
         <div className="header-actions">
-          {/* 원본 dropdown-container 구조 그대로 */}
           <div className="dropdown-container">
             <button className="secondary-button" onClick={() => { setIsMenuOpen(!isMenuOpen); setIsSaveOpen(false); }}>📂 메뉴</button>
             {isMenuOpen && (
@@ -306,7 +312,7 @@ function App() {
 
         <section className="subtitle-panel">
           {subtitles.length === 0 && (
-            <button className="add-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime + 2.5, text: '' }])}>
+            <button className="add-btn" onClick={() => setSubtitles([{ id: 'init', start: currentTime, end: currentTime + DEFAULT_DURATION, text: '' }])}>
               + 첫 자막 추가
             </button>
           )}
@@ -316,7 +322,8 @@ function App() {
             return (
               <div key={s.id} className={`clip ${currentTime >= s.start && currentTime <= s.end ? 'active' : ''} ${isTooLong ? 'warning-red' : ''}`}>
                 <div className="clip-header">
-                  <span>#{i + 1} {secondsToTimecode(s.start)}</span>
+                  {/* ✅ 시작 ~ 끝 타임코드 둘 다 표시 */}
+                  <span>#{i + 1} {secondsToTimecode(s.start)} → {secondsToTimecode(s.end)}</span>
                   <div className="clip-btns">
                     <button onClick={() => adjustFrames(i, -10)}>-10F</button>
                     <button onClick={() => adjustFrames(i, 10)}>+10F</button>
