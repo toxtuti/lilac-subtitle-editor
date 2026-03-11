@@ -400,3 +400,18 @@ video { width: 100%; height: 100%; object-fit: contain; }
   overflow: hidden;
 }
 .script-textarea::placeholder { color: #334155; }
+
+.script-del-btn {
+  background: transparent;
+  border: none;
+  color: #334155;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.script-line:hover .script-del-btn { opacity: 1; }
+.script-del-btn:hover { color: #ef4444; }

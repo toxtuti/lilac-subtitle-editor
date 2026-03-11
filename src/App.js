@@ -483,6 +483,8 @@ export default function App() {
                       placeholder="자막 입력..."
                       rows={1}
                     />
+                    <button className="script-del-btn"
+                      onClick={() => setSubtitles(subtitles.filter(x => x.id !== s.id))}>×</button>
                   </div>
                 );
               })}
