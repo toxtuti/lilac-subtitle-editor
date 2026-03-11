@@ -190,10 +190,8 @@ function App() {
     }
   };
 
-  // ✅ 미리보기: 재생 중이면 currentTime 기준, 정지 중이면 focusedIdx 기준
-  const previewSubtitle = isPlaying
-    ? subtitles.find(s => currentTime >= s.start && currentTime <= s.end) ?? null
-    : (focusedIdx !== null ? subtitles[focusedIdx] : null);
+  // ✅ 미리보기: 항상 currentTime 기준, 자막 범위 밖이면 null
+  const previewSubtitle = subtitles.find(s => currentTime >= s.start && currentTime <= s.end) ?? null;
 
   const formatLastSaved = () => {
     if (!lastSavedTime) return '';
