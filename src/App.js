@@ -63,6 +63,9 @@ function App() {
   const isFirstLoad = useRef(true);
   const videoRef = useRef(null);
   const textareaRefs = useRef([]);
+  const clipRefs = useRef([]);
+  const subtitlePanelRef = useRef(null);
+  const lastActiveIdx = useRef(-1);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -92,10 +95,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (isFirstLoad.current) {
-      isFirstLoad.current = false;
-      return;
-    }
+    if (isFirstLoad.current) { isFirstLoad.current = false; return; }
     setSaveStatus('unsaved');
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(subtitles));
     const timer = setTimeout(() => {
@@ -107,29 +107,40 @@ function App() {
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      if (subtitles.length > 0) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
+      if (subtitles.length > 0) { e.preventDefault(); e.returnValue = ''; }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [subtitles.length]);
 
+  // ✅ 재생 중 currentTime 기준으로 자막 패널 자동 동기화
   useEffect(() => {
     if (!isPlaying) return;
     const activeIdx = subtitles.findIndex(s => currentTime >= s.start && currentTime <= s.end);
-    if (activeIdx !== -1) {
+    if (activeIdx !== -1 && activeIdx !== lastActiveIdx.current) {
+      lastActiveIdx.current = activeIdx;
       setFocusedIdx(activeIdx);
-      textareaRefs.current[activeIdx]?.focus();
+      // 자막 패널 자동 스크롤
+      clipRefs.current[activeIdx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [currentTime, isPlaying, subtitles]);
 
+  // ✅ 재생: 포커스된 자막 시작점부터 재생
   const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) videoRef.current.pause();
-      else videoRef.current.play();
-      setIsPlaying(!isPlaying);
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      // 포커스된 자막이 있으면 그 시작점부터, 없으면 현재 위치에서
+      if (focusedIdx !== null && subtitles[focusedIdx]) {
+        const startTime = subtitles[focusedIdx].start;
+        videoRef.current.currentTime = startTime;
+        setCurrentTime(startTime);
+      }
+      lastActiveIdx.current = -1; // 리셋해서 재생 시작 시 즉시 포커스 이동
+      videoRef.current.play();
+      setIsPlaying(true);
     }
   };
 
@@ -155,30 +166,20 @@ function App() {
   const handleKeyDown = (e, idx) => {
     if (e.nativeEvent.isComposing) return;
     const { selectionStart, value } = e.target;
-
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const target = subtitles[idx];
-
-      // ✅ 엔터: 현재 자막 끝 시간부터 DEFAULT_DURATION 길이의 새 자막 추가
       const newStart = target.end;
       const newEnd = newStart + DEFAULT_DURATION;
       const next = [...subtitles];
-      next.splice(idx + 1, 0, {
-        id: `n-${Date.now()}`,
-        start: newStart,
-        end: newEnd,
-        text: ''
-      });
+      next.splice(idx + 1, 0, { id: `n-${Date.now()}`, start: newStart, end: newEnd, text: '' });
       setSubtitles(next);
       setTimeout(() => {
         textareaRefs.current[idx + 1]?.focus();
         setFocusedIdx(idx + 1);
       }, 50);
     }
-
     if (e.key === 'Backspace' && selectionStart === 0 && value === '' && idx > 0) {
-      // ✅ Backspace: 빈 자막일 때만 삭제하고 이전으로 이동
       e.preventDefault();
       const next = subtitles.filter((_, i) => i !== idx);
       setSubtitles(next);
@@ -189,9 +190,10 @@ function App() {
     }
   };
 
-  const previewSubtitle = focusedIdx !== null
-    ? subtitles[focusedIdx]
-    : subtitles.find(s => currentTime >= s.start && currentTime <= s.end);
+  // ✅ 미리보기: 재생 중이면 currentTime 기준, 정지 중이면 focusedIdx 기준
+  const previewSubtitle = isPlaying
+    ? subtitles.find(s => currentTime >= s.start && currentTime <= s.end) ?? null
+    : (focusedIdx !== null ? subtitles[focusedIdx] : null);
 
   const formatLastSaved = () => {
     if (!lastSavedTime) return '';
@@ -202,7 +204,6 @@ function App() {
 
   return (
     <div className="app-root" onClick={closeAll}>
-
       {toast && <div className="toast">{toast}</div>}
 
       <header className="app-header" onClick={(e) => e.stopPropagation()}>
@@ -211,50 +212,29 @@ function App() {
           <div className="brand-text">
             <h1 className="project-name">{projectName}</h1>
             <span className={`save-status ${saveStatus}`}>
-              {saveStatus === 'saved'
-                ? `✅${lastSavedTime ? ` ${formatLastSaved()}` : ''}`
-                : '🔴'}
+              {saveStatus === 'saved' ? `✅${lastSavedTime ? ` ${formatLastSaved()}` : ''}` : '🔴'}
             </span>
           </div>
         </div>
-
         <div className="header-actions">
           <div className="dropdown-container">
             <button className="secondary-button" onClick={() => { setIsMenuOpen(!isMenuOpen); setIsSaveOpen(false); }}>📂 메뉴</button>
             {isMenuOpen && (
               <div className="dropdown-menu">
-                <input type="file" id="v" hidden onChange={e => {
-                  setVideoUrl(URL.createObjectURL(e.target.files[0]));
-                  closeAll();
-                }} />
+                <input type="file" id="v" hidden onChange={e => { setVideoUrl(URL.createObjectURL(e.target.files[0])); closeAll(); }} />
                 <label htmlFor="v" className="menu-item">📹 영상 불러오기</label>
-                <input type="file" id="s" hidden accept=".srt" onChange={async e => {
-                  setSubtitles(parseSRT(await e.target.files[0].text()));
-                  closeAll();
-                  showToast('📜 SRT 불러오기 완료!');
-                }} />
+                <input type="file" id="s" hidden accept=".srt" onChange={async e => { setSubtitles(parseSRT(await e.target.files[0].text())); closeAll(); showToast('📜 SRT 불러오기 완료!'); }} />
                 <label htmlFor="s" className="menu-item">📜 SRT 불러오기</label>
                 <input type="file" id="j" hidden accept=".json" onChange={async e => {
                   const data = JSON.parse(await e.target.files[0].text());
-                  setProjectName(data.projectName);
-                  setSubtitles(data.subtitles);
-                  closeAll();
+                  setProjectName(data.projectName); setSubtitles(data.subtitles); closeAll();
                   showToast(`📁 "${data.projectName}" 불러오기 완료!`);
                 }} />
-                <label htmlFor="j" className="menu-item">
-                  📁 JSON 불러오기
-                  <span className="menu-sub">다른 기기에서 이어서 작업</span>
-                </label>
-                <button className="menu-item reset" onClick={() => {
-                  if (window.confirm('자막을 모두 초기화할까요?')) {
-                    setSubtitles([]);
-                    closeAll();
-                  }
-                }}>🔄 초기화</button>
+                <label htmlFor="j" className="menu-item">📁 JSON 불러오기<span className="menu-sub">다른 기기에서 이어서 작업</span></label>
+                <button className="menu-item reset" onClick={() => { if (window.confirm('자막을 모두 초기화할까요?')) { setSubtitles([]); closeAll(); } }}>🔄 초기화</button>
               </div>
             )}
           </div>
-
           <div className="dropdown-container">
             <button className="primary-button" onClick={() => { setIsSaveOpen(!isSaveOpen); setIsMenuOpen(false); }}>💾 저장</button>
             {isSaveOpen && (
@@ -262,26 +242,14 @@ function App() {
                 <button className="menu-item" onClick={() => {
                   const a = document.createElement('a');
                   a.href = URL.createObjectURL(new Blob([JSON.stringify({ projectName, subtitles })], { type: 'application/json' }));
-                  a.download = `${projectName}.json`;
-                  a.click();
-                  closeAll();
-                  showToast('📁 JSON 저장 완료!');
-                }}>
-                  📁 JSON으로 저장
-                  <span className="menu-sub">다른 기기에서 이어서 쓸 때</span>
-                </button>
+                  a.download = `${projectName}.json`; a.click(); closeAll(); showToast('📁 JSON 저장 완료!');
+                }}>📁 JSON으로 저장<span className="menu-sub">다른 기기에서 이어서 쓸 때</span></button>
                 <button className="menu-item" onClick={() => {
                   const a = document.createElement('a');
                   const srt = subtitles.map((s, i) => `${i + 1}\n${secondsToSrtTime(s.start)} --> ${secondsToSrtTime(s.end)}\n${s.text}`).join('\n\n');
                   a.href = URL.createObjectURL(new Blob([srt], { type: 'text/plain' }));
-                  a.download = `${projectName}.srt`;
-                  a.click();
-                  closeAll();
-                  showToast('📝 SRT 내보내기 완료!');
-                }}>
-                  📝 SRT 내보내기
-                  <span className="menu-sub">다빈치에 바로 가져다 쓸 때</span>
-                </button>
+                  a.download = `${projectName}.srt`; a.click(); closeAll(); showToast('📝 SRT 내보내기 완료!');
+                }}>📝 SRT 내보내기<span className="menu-sub">다빈치에 바로 가져다 쓸 때</span></button>
               </div>
             )}
           </div>
@@ -293,12 +261,7 @@ function App() {
           <div className="video-container">
             {videoUrl ? (
               <>
-                <video
-                  ref={videoRef}
-                  src={videoUrl}
-                  playsInline
-                  onTimeUpdate={e => setCurrentTime(e.target.currentTime)}
-                />
+                <video ref={videoRef} src={videoUrl} playsInline onTimeUpdate={e => setCurrentTime(e.target.currentTime)} />
                 {previewSubtitle?.text && (
                   <div className="subtitle-overlay">{previewSubtitle.text}</div>
                 )}
@@ -317,21 +280,25 @@ function App() {
           <div className="time-display">{secondsToTimecode(currentTime)}</div>
         </section>
 
-        <section className="subtitle-panel">
+        <section className="subtitle-panel" ref={subtitlePanelRef}>
           {subtitles.length === 0 && (
             <button className="add-btn" onClick={() => {
               setSubtitles([{ id: 'init', start: currentTime, end: currentTime + DEFAULT_DURATION, text: '' }]);
               setTimeout(() => { textareaRefs.current[0]?.focus(); setFocusedIdx(0); }, 50);
-            }}>
-              + 첫 자막 추가
-            </button>
+            }}>+ 첫 자막 추가</button>
           )}
           {subtitles.map((s, i) => {
             const duration = s.end - s.start;
             const isTooLong = s.text.length / duration > MAX_CPS;
-            const isActive = i === focusedIdx || (focusedIdx === null && currentTime >= s.start && currentTime <= s.end);
+            const isActive = isPlaying
+              ? (currentTime >= s.start && currentTime <= s.end)
+              : i === focusedIdx;
             return (
-              <div key={s.id} className={`clip ${isActive ? 'active' : ''} ${isTooLong ? 'warning-red' : ''}`}>
+              <div
+                key={s.id}
+                ref={el => clipRefs.current[i] = el}
+                className={`clip ${isActive ? 'active' : ''} ${isTooLong ? 'warning-red' : ''}`}
+              >
                 <div className="clip-header">
                   <span>#{i + 1} {secondsToTimecode(s.start)} → {secondsToTimecode(s.end)}</span>
                   <div className="clip-btns">
