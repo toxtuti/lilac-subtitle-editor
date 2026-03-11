@@ -176,6 +176,13 @@ export default function App() {
     return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * videoDuration;
   }, [videoDuration]);
 
+  const DRAG_SENSITIVITY = 0.1; // 드래그 감도 (1 = 보통, 0.1 = 10배 섬세)
+  const SNAP_THRESHOLD = 0.3;   // 마그네틱 스냅 범위 (초)
+
+  const snapToPlayhead = (value, playhead) => {
+    return Math.abs(value - playhead) < SNAP_THRESHOLD ? playhead : value;
+  };
+
   const onTimelineDragStart = useCallback((e, idx, type) => {
     e.preventDefault();
     e.stopPropagation();
@@ -186,20 +193,31 @@ export default function App() {
       const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
       const rect = timelineRef.current?.getBoundingClientRect();
       if (!rect || !videoDuration) return;
-      const dx = (cx - dragState.current.startX) / rect.width * videoDuration;
+      // 감도 낮추기: 픽셀 이동량에 DRAG_SENSITIVITY 곱함
+      const rawDx = (cx - dragState.current.startX) / rect.width * videoDuration;
+      const dx = rawDx * DRAG_SENSITIVITY;
       const { idx, type, origStart, origEnd } = dragState.current;
+      const ph = currentTime; // 플레이헤드 위치
       setSubtitles(prev => {
         const next = [...prev];
         const s = { ...next[idx] };
         const minDur = 2/FPS;
         if (type === 'move') {
           const dur = origEnd - origStart;
-          s.start = Math.max(0, Math.min(videoDuration - dur, origStart + dx));
-          s.end = s.start + dur;
+          let newStart = Math.max(0, Math.min(videoDuration - dur, origStart + dx));
+          let newEnd = newStart + dur;
+          // 마그네틱: start 또는 end가 플레이헤드에 가까우면 스냅
+          const snappedStart = snapToPlayhead(newStart, ph);
+          const snappedEnd = snapToPlayhead(newEnd, ph);
+          if (snappedStart !== newStart) { newStart = snappedStart; newEnd = newStart + dur; }
+          else if (snappedEnd !== newEnd) { newEnd = snappedEnd; newStart = newEnd - dur; }
+          s.start = newStart; s.end = newEnd;
         } else if (type === 'left') {
-          s.start = Math.max(0, Math.min(origEnd - minDur, origStart + dx));
+          let newStart = Math.max(0, Math.min(origEnd - minDur, origStart + dx));
+          s.start = snapToPlayhead(newStart, ph);
         } else if (type === 'right') {
-          s.end = Math.max(origStart + minDur, Math.min(videoDuration, origEnd + dx));
+          let newEnd = Math.max(origStart + minDur, Math.min(videoDuration, origEnd + dx));
+          s.end = snapToPlayhead(newEnd, ph);
         }
         next[idx] = s;
         return next;
