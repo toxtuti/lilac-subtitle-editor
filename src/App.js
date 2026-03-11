@@ -125,10 +125,16 @@ export default function App() {
       videoRef.current.pause();
       setIsPlaying(false);
     } else {
-      if (focusedIdx !== null && subtitles[focusedIdx]) {
-        videoRef.current.currentTime = subtitles[focusedIdx].start;
-        setCurrentTime(subtitles[focusedIdx].start);
+      // 선택된 자막의 시작점 == 현재 플레이헤드일 때만 자막 기준 재생
+      // 플레이헤드를 따로 옮겼으면 그 위치부터 재생
+      const sub = focusedIdx !== null ? subtitles[focusedIdx] : null;
+      const playheadMatchesSub = sub && Math.abs(videoRef.current.currentTime - sub.start) < 0.1;
+      if (playheadMatchesSub) {
+        // 자막 클릭 후 바로 재생 → 자막 시작점
+        videoRef.current.currentTime = sub.start;
+        setCurrentTime(sub.start);
       }
+      // 그 외엔 현재 플레이헤드 위치 그대로 재생
       lastActiveIdx.current = -1;
       videoRef.current.play();
       setIsPlaying(true);
