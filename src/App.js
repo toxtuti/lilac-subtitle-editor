@@ -315,44 +315,88 @@ export default function App() {
             )}
           </div>
 
-          {/* ── 타임라인 바 ── */}
+          {/* ── 전체 타임라인 (얇은 바) ── */}
           {videoDuration > 0 && (
-            <div className="timeline-wrap">
-              <div className="timeline-bar" ref={timelineRef} onClick={onTimelineClick}>
-                {/* 자막 블록들 */}
-                {subtitles.map((s, i) => {
-                  const isActive = i === focusedIdx || (currentTime >= s.start && currentTime < s.end);
-                  return (
-                    <div
-                      key={s.id}
-                      className={`tl-block ${isActive ? 'tl-active' : ''}`}
-                      style={{ left: timelinePx(s.start), width: `calc(${timelinePx(s.end)} - ${timelinePx(s.start)})` }}
-                      onMouseDown={e => onTimelineDragStart(e, i, 'move')}
-                      onTouchStart={e => onTimelineDragStart(e, i, 'move')}
-                      onClick={e => { e.stopPropagation(); setFocusedIdx(i); if(videoRef.current){ videoRef.current.currentTime=s.start; setCurrentTime(s.start); } }}
-                    >
-                      <div className="tl-handle tl-left"
-                        onMouseDown={e => { e.stopPropagation(); onTimelineDragStart(e, i, 'left'); }}
-                        onTouchStart={e => { e.stopPropagation(); onTimelineDragStart(e, i, 'left'); }}
-                      />
-                      <span className="tl-label">{s.text ? s.text.slice(0,10) : `#${i+1}`}</span>
-                      <div className="tl-handle tl-right"
-                        onMouseDown={e => { e.stopPropagation(); onTimelineDragStart(e, i, 'right'); }}
-                        onTouchStart={e => { e.stopPropagation(); onTimelineDragStart(e, i, 'right'); }}
-                      />
-                    </div>
-                  );
-                })}
-                {/* 플레이헤드 */}
-                <div className="tl-playhead" style={{ left: timelinePx(currentTime) }} />
-              </div>
-              <div className="tl-time-row">
-                <span>{secondsToTimecode(0)}</span>
-                <span>{secondsToTimecode(videoDuration/2)}</span>
-                <span>{secondsToTimecode(videoDuration)}</span>
+            <div className="tl-overview-wrap">
+              <div className="tl-overview" onClick={e => {
+                if (dragState.current) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const t = Math.max(0, Math.min(videoDuration, (e.clientX - rect.left) / rect.width * videoDuration));
+                if (videoRef.current) { videoRef.current.currentTime = t; setCurrentTime(t); }
+              }}>
+                {subtitles.map((s, i) => (
+                  <div key={s.id} className={"tl-ov-block" + (i === focusedIdx ? " tl-active" : "")}
+                    style={{ left: timelinePx(s.start), width: `calc(${timelinePx(s.end)} - ${timelinePx(s.start)})` }}
+                    onClick={e => { e.stopPropagation(); setFocusedIdx(i); if(videoRef.current){ videoRef.current.currentTime=s.start; setCurrentTime(s.start); } }}
+                  />
+                ))}
+                <div className="tl-ov-playhead" style={{ left: timelinePx(currentTime) }} />
               </div>
             </div>
           )}
+
+          {/* ── 줌인 타임라인 (현재 시간 ±10초) ── */}
+          {videoDuration > 0 && (() => {
+            const ZOOM_WINDOW = 20;
+            const halfW = ZOOM_WINDOW / 2;
+            let zStart = currentTime - halfW;
+            let zEnd = currentTime + halfW;
+            if (zStart < 0) { zEnd -= zStart; zStart = 0; }
+            if (zEnd > videoDuration) { zStart -= (zEnd - videoDuration); zEnd = videoDuration; zStart = Math.max(0, zStart); }
+            const toZoomPct = (sec) => `${((sec - zStart) / ZOOM_WINDOW) * 100}%`;
+            const visibleSubs = subtitles.filter(s => s.end > zStart && s.start < zEnd);
+            const tickStep = 2;
+            const firstTick = Math.ceil(zStart / tickStep) * tickStep;
+            const ticks = [];
+            for (let t = firstTick; t <= zEnd + 0.01; t += tickStep) ticks.push(Math.round(t * 100) / 100);
+            return (
+              <div className="tl-zoom-wrap">
+                <div className="tl-zoom-bar" ref={timelineRef}
+                  onClick={e => {
+                    if (dragState.current) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const t = zStart + (e.clientX - rect.left) / rect.width * ZOOM_WINDOW;
+                    const clamped = Math.max(0, Math.min(videoDuration, t));
+                    if (videoRef.current) { videoRef.current.currentTime = clamped; setCurrentTime(clamped); }
+                  }}
+                >
+                  {ticks.map(t => (
+                    <div key={t} className="tl-tick" style={{ left: toZoomPct(t) }}>
+                      <div className="tl-tick-line" />
+                      <span className="tl-tick-label">{secondsToTimecode(t).slice(3,8)}</span>
+                    </div>
+                  ))}
+                  {visibleSubs.map(s => {
+                    const i = subtitles.indexOf(s);
+                    const isActive = i === focusedIdx || (currentTime >= s.start && currentTime < s.end);
+                    const lPct = ((Math.max(s.start, zStart) - zStart) / ZOOM_WINDOW) * 100;
+                    const rPct = ((Math.min(s.end, zEnd) - zStart) / ZOOM_WINDOW) * 100;
+                    return (
+                      <div key={s.id}
+                        className={"tl-block" + (isActive ? " tl-active" : "")}
+                        style={{ left: `${lPct}%`, width: `${Math.max(0, rPct - lPct)}%` }}
+                        onMouseDown={e => onTimelineDragStart(e, i, "move")}
+                        onTouchStart={e => onTimelineDragStart(e, i, "move")}
+                        onClick={e => { e.stopPropagation(); setFocusedIdx(i); if(videoRef.current){ videoRef.current.currentTime=s.start; setCurrentTime(s.start); } }}
+                      >
+                        <div className="tl-handle tl-left"
+                          onMouseDown={e => { e.stopPropagation(); onTimelineDragStart(e, i, "left"); }}
+                          onTouchStart={e => { e.stopPropagation(); onTimelineDragStart(e, i, "left"); }}
+                        />
+                        <span className="tl-label">{s.text ? s.text.slice(0,12) : "#" + (i+1)}</span>
+                        <div className="tl-handle tl-right"
+                          onMouseDown={e => { e.stopPropagation(); onTimelineDragStart(e, i, "right"); }}
+                          onTouchStart={e => { e.stopPropagation(); onTimelineDragStart(e, i, "right"); }}
+                        />
+                      </div>
+                    );
+                  })}
+                  <div className="tl-playhead" style={{ left: toZoomPct(currentTime) }} />
+                </div>
+              </div>
+            );
+          })()}
+
 
           <div className="video-controls">
             <button onClick={() => seekFrames(-5)}>-5F</button>
