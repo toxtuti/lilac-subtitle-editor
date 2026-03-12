@@ -210,6 +210,28 @@ export default function App() {
     setSubtitles(next);
   };
 
+  // ✂️ 플레이헤드 위치에서 자막 자르기
+  const splitSubtitle = (idx) => {
+    const s = subtitles[idx];
+    const ph = videoRef.current?.currentTime ?? currentTime;
+    if (ph <= s.start + 0.05 || ph >= s.end - 0.05) return; // 너무 끝쪽이면 무시
+    const next = [...subtitles];
+    const first  = { ...s, end: ph };
+    const second = { id: `split-${Date.now()}`, start: ph, end: s.end, text: '' };
+    next.splice(idx, 1, first, second);
+    setSubtitles(next);
+    setTimeout(() => { textareaRefs.current[idx+1]?.focus(); setFocusedIdx(idx+1); }, 50);
+  };
+
+  // ⟷ 선택 자막 끝을 다음 자막 시작 or +DEFAULT_DURATION 까지 늘리기
+  const extendSubtitle = (idx) => {
+    const next = [...subtitles];
+    const nextSub = next[idx + 1];
+    const newEnd = nextSub ? nextSub.start : next[idx].end + DEFAULT_DURATION;
+    next[idx] = { ...next[idx], end: Math.min(videoDuration || Infinity, newEnd) };
+    setSubtitles(next);
+  };
+
   const handleKeyDown = (e, idx) => {
     if (e.nativeEvent.isComposing) return;
     const { selectionStart, value } = e.target;
@@ -492,6 +514,8 @@ export default function App() {
                   <span>#{i+1} {secondsToTimecode(s.start)} → {secondsToTimecode(s.end)}</span>
                   <div className="clip-btns">
                     <button onClick={() => adjustFrames(i, -10)}>-10F</button>
+                    <button className="clip-btn-split" title="플레이헤드에서 자르기" onClick={() => splitSubtitle(i)}>✂️</button>
+                    <button className="clip-btn-extend" title="다음 자막까지 늘리기" onClick={() => extendSubtitle(i)}>⟷</button>
                     <button onClick={() => adjustFrames(i, 10)}>+10F</button>
                     <button onClick={() => setSubtitles(subtitles.filter(x => x.id !== s.id))}>×</button>
                   </div>
