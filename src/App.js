@@ -58,6 +58,7 @@ export default function App() {
   const [lastSavedTime, setLastSavedTime] = useState(null);
   const [toast, setToast] = useState(null);
   const [focusedIdx, setFocusedIdx] = useState(null);
+  const [isEditingName, setIsEditingName] = useState(false);
   const [panelView, setPanelView] = useState('card');
 
   const isFirstLoad = useRef(true);
@@ -346,7 +347,22 @@ export default function App() {
         <div className="app-brand">
           <div className="app-logo">L</div>
           <div className="brand-text">
-            <h1 className="project-name">{projectName}</h1>
+            {isEditingName ? (
+              <input
+                className="project-name-input"
+                value={projectName}
+                autoFocus
+                onChange={e => setProjectName(e.target.value)}
+                onBlur={() => setIsEditingName(false)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { e.target.blur(); } }}
+                onClick={e => e.stopPropagation()}
+              />
+            ) : (
+              <h1 className="project-name editable" title="클릭해서 이름 변경"
+                onClick={e => { e.stopPropagation(); setIsEditingName(true); }}>
+                {projectName} ✏️
+              </h1>
+            )}
             <span className={`save-status ${saveStatus}`}>
               {saveStatus==='saved' ? `✅${lastSavedTime ? ` ${formatLastSaved()}` : ''}` : '🔴'}
             </span>

@@ -478,3 +478,19 @@ video { width: 100%; height: 100%; object-fit: contain; }
 }
 .clip-btn-split:hover { background: #fff0f0; border-color: #ffaaaa; }
 .clip-btn-extend:hover { background: #f0f0ff; border-color: #aaaaff; }
+
+.project-name.editable { cursor: pointer; }
+.project-name.editable:hover { color: var(--lilac); }
+
+.project-name-input {
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  border-bottom: 2px solid var(--lilac);
+  outline: none;
+  background: transparent;
+  color: #333;
+  width: 180px;
+  padding: 0 2px;
+  font-family: inherit;
+}
