@@ -108,6 +108,57 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', fn);
   }, [subtitles.length]);
 
+  // ── 전역 단축키 (스페이스, 방향키) + 타임라인 휠 ──────────
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const tag = document.activeElement?.tagName;
+      const isTyping = tag === 'TEXTAREA' || tag === 'INPUT';
+
+      // 스페이스바: 자막 입력 중엔 작동 안 함
+      if (e.code === 'Space' && !isTyping) {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
+
+      // 방향키: 자막 입력 중엔 작동 안 함
+      if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && !isTyping) {
+        e.preventDefault();
+        const frames = e.ctrlKey || e.metaKey ? 5 : 1;
+        const delta = e.code === 'ArrowLeft' ? -frames : frames;
+        if (videoRef.current) {
+          const t = Math.max(0, Math.min(videoDuration, videoRef.current.currentTime + delta / FPS));
+          videoRef.current.currentTime = t;
+          setCurrentTime(t);
+        }
+      }
+    };
+
+    // 타임라인 휠: 앞뒤 이동 + 브라우저 뒤로가기 방지
+    const onWheel = (e) => {
+      const el = e.target;
+      const inTimeline = el.closest?.('.tl-zoom-wrap') || el.closest?.('.tl-overview-wrap');
+      if (!inTimeline) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // 수평(deltaX) 또는 수직(deltaY) 스크롤 모두 처리
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const moveSec = (delta / 300) * 10; // 트랙패드 감도 조절
+      if (videoRef.current) {
+        const t = Math.max(0, Math.min(videoDuration, videoRef.current.currentTime + moveSec));
+        videoRef.current.currentTime = t;
+        setCurrentTime(t);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('wheel', onWheel);
+    };
+  }, [isPlaying, videoDuration, togglePlay]);
+
   // 재생 중 자막 패널 자동 동기화
   useEffect(() => {
     if (!isPlaying) return;
@@ -119,7 +170,7 @@ export default function App() {
     }
   }, [currentTime, isPlaying, subtitles]);
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
     if (isPlaying) {
       videoRef.current.pause();
@@ -139,7 +190,7 @@ export default function App() {
       videoRef.current.play();
       setIsPlaying(true);
     }
-  };
+  }, [isPlaying, focusedIdx, subtitles]);
 
   const seekFrames = (delta) => {
     if (!videoRef.current) return;
