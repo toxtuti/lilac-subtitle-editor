@@ -151,6 +151,20 @@ export default function App() {
         togglePlay();
         return;
       }
+      // N: 현재 플레이헤드 위치에 자막 추가
+      if (e.code === 'KeyN' && !isTyping) {
+        e.preventDefault();
+        const t = videoRef.current?.currentTime ?? 0;
+        const newSub = { id: `n-${Date.now()}`, start: t, end: t + DEFAULT_DURATION, text: '' };
+        setSubtitles(prev => {
+          const next = [...prev, newSub].sort((a, b) => a.start - b.start);
+          const newIdx = next.findIndex(s => s.id === newSub.id);
+          setTimeout(() => { textareaRefs.current[newIdx]?.focus(); setFocusedIdx(newIdx); }, 50);
+          return next;
+        });
+        return;
+      }
+
       if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && !isTyping) {
         e.preventDefault();
         const frames = e.ctrlKey || e.metaKey ? 5 : 1;
