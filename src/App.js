@@ -9,20 +9,20 @@ const MAX_CPS = 25;
 function secondsToTimecode(totalSeconds) {
   if (Number.isNaN(totalSeconds) || totalSeconds == null) return '00:00:00:00';
   const totalFrames = Math.max(0, Math.round(totalSeconds * FPS));
-  const hours = Math.floor(totalFrames / (3600 * FPS));
-  const minutes = Math.floor((totalFrames % (3600 * FPS)) / (60 * FPS));
-  const seconds = Math.floor((totalFrames % (60 * FPS)) / FPS);
-  const frames = totalFrames % FPS;
+  const h = Math.floor(totalFrames / (3600 * FPS));
+  const m = Math.floor((totalFrames % (3600 * FPS)) / (60 * FPS));
+  const s = Math.floor((totalFrames % (60 * FPS)) / FPS);
+  const f = totalFrames % FPS;
   const pad = (n, w) => String(n).padStart(w, '0');
-  return `${pad(hours,2)}:${pad(minutes,2)}:${pad(seconds,2)}:${pad(frames,2)}`;
+  return `${pad(h,2)}:${pad(m,2)}:${pad(s,2)}:${pad(f,2)}`;
 }
 
-function secondsToSrtTime(s) {
-  const c = Math.max(0, s || 0);
-  const h = Math.floor(c/3600), m = Math.floor((c%3600)/60), ss = Math.floor(c%60);
+function secondsToSrtTime(sec) {
+  const c = Math.max(0, sec || 0);
+  const h = Math.floor(c/3600), m = Math.floor((c%3600)/60), s = Math.floor(c%60);
   const ms = Math.round((c - Math.floor(c)) * 1000);
   const pad = (n, w) => String(n).padStart(w, '0');
-  return `${pad(h,2)}:${pad(m,2)}:${pad(ss,2)},${pad(ms,3)}`;
+  return `${pad(h,2)}:${pad(m,2)}:${pad(s,2)},${pad(ms,3)}`;
 }
 
 function parseSRT(text) {
@@ -58,7 +58,7 @@ export default function App() {
   const [lastSavedTime, setLastSavedTime] = useState(null);
   const [toast, setToast] = useState(null);
   const [focusedIdx, setFocusedIdx] = useState(null);
-  const [panelView, setPanelView] = useState('card'); // 'card' | 'script'
+  const [panelView, setPanelView] = useState('card');
 
   const isFirstLoad = useRef(true);
   const videoRef = useRef(null);
@@ -67,10 +67,21 @@ export default function App() {
   const subtitlePanelRef = useRef(null);
   const lastActiveIdx = useRef(-1);
   const timelineRef = useRef(null);
-  const dragState = useRef(null); // { idx, type: 'move'|'left'|'right', startX, origStart, origEnd }
+  const dragState = useRef(null);
+  const isPlayingRef = useRef(false);
+  const focusedIdxRef = useRef(null);
+  const subtitlesRef = useRef([]);
+  const videoDurationRef = useRef(0);
+
+  // ref 동기화
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { focusedIdxRef.current = focusedIdx; }, [focusedIdx]);
+  useEffect(() => { subtitlesRef.current = subtitles; }, [subtitles]);
+  useEffect(() => { videoDurationRef.current = videoDuration; }, [videoDuration]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
+  // visualViewport 대응
   useEffect(() => {
     const vvp = window.visualViewport;
     if (!vvp) return;
@@ -78,8 +89,6 @@ export default function App() {
       const vh = vvp.height;
       document.documentElement.style.setProperty('--app-height', `${vh}px`);
       document.documentElement.style.setProperty('--app-offset', `${vvp.offsetTop}px`);
-      // 모바일: 영상 패널 최대 높이를 뷰포트의 40%로 고정
-      // 키보드 올라와도 영상은 vp 기준 40% 이하로만 차지
       document.documentElement.style.setProperty('--video-panel-max', `${Math.round(vh * 0.42)}px`);
       window.scrollTo(0, 0);
     };
@@ -89,11 +98,13 @@ export default function App() {
     return () => { vvp.removeEventListener('resize', onVC); vvp.removeEventListener('scroll', onVC); };
   }, []);
 
+  // 로컬스토리지 불러오기
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) setSubtitles(JSON.parse(raw));
   }, []);
 
+  // 자동 저장
   useEffect(() => {
     if (isFirstLoad.current) { isFirstLoad.current = false; return; }
     setSaveStatus('unsaved');
@@ -102,62 +113,75 @@ export default function App() {
     return () => clearTimeout(t);
   }, [subtitles]);
 
+  // 탭 닫기 경고
   useEffect(() => {
     const fn = (e) => { if (subtitles.length > 0) { e.preventDefault(); e.returnValue = ''; } };
     window.addEventListener('beforeunload', fn);
     return () => window.removeEventListener('beforeunload', fn);
   }, [subtitles.length]);
 
-  // ── 전역 단축키 (스페이스, 방향키) + 타임라인 휠 ──────────
+  // 재생/정지 (ref 기반으로 클로저 문제 없음)
+  const togglePlay = useCallback(() => {
+    if (!videoRef.current) return;
+    if (isPlayingRef.current) {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      const subs = subtitlesRef.current;
+      const fi = focusedIdxRef.current;
+      const sub = fi !== null ? subs[fi] : null;
+      const playheadMatchesSub = sub && Math.abs(videoRef.current.currentTime - sub.start) < 0.1;
+      if (playheadMatchesSub) {
+        videoRef.current.currentTime = sub.start;
+        setCurrentTime(sub.start);
+      }
+      lastActiveIdx.current = -1;
+      videoRef.current.play();
+      setIsPlaying(true);
+    }
+  }, []);
+
+  // 전역 단축키 + 타임라인 휠
   useEffect(() => {
     const onKeyDown = (e) => {
       const tag = document.activeElement?.tagName;
       const isTyping = tag === 'TEXTAREA' || tag === 'INPUT';
-
-      // 스페이스바: 자막 입력 중엔 작동 안 함
       if (e.code === 'Space' && !isTyping) {
         e.preventDefault();
         togglePlay();
         return;
       }
-
-      // 방향키: 자막 입력 중엔 작동 안 함
       if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && !isTyping) {
         e.preventDefault();
         const frames = e.ctrlKey || e.metaKey ? 5 : 1;
         const delta = e.code === 'ArrowLeft' ? -frames : frames;
         if (videoRef.current) {
-          const t = Math.max(0, Math.min(videoDuration, videoRef.current.currentTime + delta / FPS));
+          const t = Math.max(0, Math.min(videoDurationRef.current, videoRef.current.currentTime + delta / FPS));
           videoRef.current.currentTime = t;
           setCurrentTime(t);
         }
       }
     };
-
-    // 타임라인 휠: 앞뒤 이동 + 브라우저 뒤로가기 방지
     const onWheel = (e) => {
-      const el = e.target;
-      const inTimeline = el.closest?.('.tl-zoom-wrap') || el.closest?.('.tl-overview-wrap');
+      const inTimeline = e.target.closest?.('.tl-zoom-wrap') || e.target.closest?.('.tl-overview-wrap');
       if (!inTimeline) return;
       e.preventDefault();
       e.stopPropagation();
-      // 수평(deltaX) 또는 수직(deltaY) 스크롤 모두 처리
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      const moveSec = (delta / 300) * 10; // 트랙패드 감도 조절
+      const moveSec = (delta / 300) * 10;
       if (videoRef.current) {
-        const t = Math.max(0, Math.min(videoDuration, videoRef.current.currentTime + moveSec));
+        const t = Math.max(0, Math.min(videoDurationRef.current, videoRef.current.currentTime + moveSec));
         videoRef.current.currentTime = t;
         setCurrentTime(t);
       }
     };
-
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('wheel', onWheel);
     };
-  }, [isPlaying, videoDuration, togglePlay]);
+  }, [togglePlay]);
 
   // 재생 중 자막 패널 자동 동기화
   useEffect(() => {
@@ -169,28 +193,6 @@ export default function App() {
       clipRefs.current[activeIdx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [currentTime, isPlaying, subtitles]);
-
-  const togglePlay = useCallback(() => {
-    if (!videoRef.current) return;
-    if (isPlaying) {
-      videoRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      // 선택된 자막의 시작점 == 현재 플레이헤드일 때만 자막 기준 재생
-      // 플레이헤드를 따로 옮겼으면 그 위치부터 재생
-      const sub = focusedIdx !== null ? subtitles[focusedIdx] : null;
-      const playheadMatchesSub = sub && Math.abs(videoRef.current.currentTime - sub.start) < 0.1;
-      if (playheadMatchesSub) {
-        // 자막 클릭 후 바로 재생 → 자막 시작점
-        videoRef.current.currentTime = sub.start;
-        setCurrentTime(sub.start);
-      }
-      // 그 외엔 현재 플레이헤드 위치 그대로 재생
-      lastActiveIdx.current = -1;
-      videoRef.current.play();
-      setIsPlaying(true);
-    }
-  }, [isPlaying, focusedIdx, subtitles]);
 
   const seekFrames = (delta) => {
     if (!videoRef.current) return;
@@ -226,55 +228,42 @@ export default function App() {
     }
   };
 
-  // ── 타임라인 드래그 ──────────────────────────────────────
-  const getTimelineX = useCallback((clientX) => {
-    const rect = timelineRef.current?.getBoundingClientRect();
-    if (!rect || !videoDuration) return 0;
-    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * videoDuration;
-  }, [videoDuration]);
-
-  const DRAG_SENSITIVITY = 0.1; // 드래그 감도 (1 = 보통, 0.1 = 10배 섬세)
-  const SNAP_THRESHOLD = 0.3;   // 마그네틱 스냅 범위 (초)
-
-  const snapToPlayhead = (value, playhead) => {
-    return Math.abs(value - playhead) < SNAP_THRESHOLD ? playhead : value;
-  };
+  // 타임라인 드래그
+  const DRAG_SENSITIVITY = 0.1;
+  const SNAP_THRESHOLD = 0.3;
+  const snapToPlayhead = (value, playhead) => Math.abs(value - playhead) < SNAP_THRESHOLD ? playhead : value;
 
   const onTimelineDragStart = useCallback((e, idx, type) => {
     e.preventDefault();
     e.stopPropagation();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    dragState.current = { idx, type, startX: clientX, origStart: subtitles[idx].start, origEnd: subtitles[idx].end };
+    dragState.current = { idx, type, startX: clientX, origStart: subtitlesRef.current[idx].start, origEnd: subtitlesRef.current[idx].end };
 
     const onMove = (ev) => {
       const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
       const rect = timelineRef.current?.getBoundingClientRect();
-      if (!rect || !videoDuration) return;
-      // 감도 낮추기: 픽셀 이동량에 DRAG_SENSITIVITY 곱함
-      const rawDx = (cx - dragState.current.startX) / rect.width * videoDuration;
+      if (!rect || !videoDurationRef.current) return;
+      const rawDx = (cx - dragState.current.startX) / rect.width * videoDurationRef.current;
       const dx = rawDx * DRAG_SENSITIVITY;
       const { idx, type, origStart, origEnd } = dragState.current;
-      const ph = currentTime; // 플레이헤드 위치
+      const ph = videoRef.current?.currentTime ?? 0;
       setSubtitles(prev => {
         const next = [...prev];
         const s = { ...next[idx] };
         const minDur = 2/FPS;
         if (type === 'move') {
           const dur = origEnd - origStart;
-          let newStart = Math.max(0, Math.min(videoDuration - dur, origStart + dx));
+          let newStart = Math.max(0, Math.min(videoDurationRef.current - dur, origStart + dx));
           let newEnd = newStart + dur;
-          // 마그네틱: start 또는 end가 플레이헤드에 가까우면 스냅
           const snappedStart = snapToPlayhead(newStart, ph);
           const snappedEnd = snapToPlayhead(newEnd, ph);
           if (snappedStart !== newStart) { newStart = snappedStart; newEnd = newStart + dur; }
           else if (snappedEnd !== newEnd) { newEnd = snappedEnd; newStart = newEnd - dur; }
           s.start = newStart; s.end = newEnd;
         } else if (type === 'left') {
-          let newStart = Math.max(0, Math.min(origEnd - minDur, origStart + dx));
-          s.start = snapToPlayhead(newStart, ph);
+          s.start = snapToPlayhead(Math.max(0, Math.min(origEnd - minDur, origStart + dx)), ph);
         } else if (type === 'right') {
-          let newEnd = Math.max(origStart + minDur, Math.min(videoDuration, origEnd + dx));
-          s.end = snapToPlayhead(newEnd, ph);
+          s.end = snapToPlayhead(Math.max(origStart + minDur, Math.min(videoDurationRef.current, origEnd + dx)), ph);
         }
         next[idx] = s;
         return next;
@@ -288,20 +277,12 @@ export default function App() {
       window.removeEventListener('touchmove', onMove);
       window.removeEventListener('touchend', onUp);
     };
-
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     window.addEventListener('touchmove', onMove, { passive: false });
     window.addEventListener('touchend', onUp);
-  }, [subtitles, videoDuration]);
+  }, []);
 
-  const onTimelineClick = useCallback((e) => {
-    if (dragState.current) return;
-    const t = getTimelineX(e.clientX);
-    if (videoRef.current) { videoRef.current.currentTime = t; setCurrentTime(t); }
-  }, [getTimelineX]);
-
-  // ── 미리보기 ────────────────────────────────────────────
   const previewSubtitle = isPlaying
     ? (subtitles.find(s => currentTime >= s.start && currentTime < s.end) ?? null)
     : (focusedIdx !== null && subtitles[focusedIdx] ? subtitles[focusedIdx] : null);
@@ -319,14 +300,12 @@ export default function App() {
     setTimeout(() => { textareaRefs.current[newIdx]?.focus(); setFocusedIdx(newIdx); }, 50);
   };
 
-  // ── 렌더 ────────────────────────────────────────────────
   const timelinePx = (sec) => videoDuration ? `${(sec/videoDuration)*100}%` : '0%';
 
   return (
     <div className="app-root" onClick={closeAll}>
       {toast && <div className="toast">{toast}</div>}
 
-      {/* ── 헤더 ── */}
       <header className="app-header" onClick={e => e.stopPropagation()}>
         <div className="app-brand">
           <div className="app-logo">L</div>
@@ -378,13 +357,11 @@ export default function App() {
       </header>
 
       <main className="app-main">
-        {/* ── 영상 패널 ── */}
         <section className="video-panel">
           <div className="video-container">
             {videoUrl ? (
               <>
-                <video
-                  ref={videoRef} src={videoUrl} playsInline
+                <video ref={videoRef} src={videoUrl} playsInline
                   onTimeUpdate={e => setCurrentTime(e.target.currentTime)}
                   onLoadedMetadata={e => setVideoDuration(e.target.duration)}
                 />
@@ -395,7 +372,7 @@ export default function App() {
             )}
           </div>
 
-          {/* ── 전체 타임라인 (얇은 바) ── */}
+          {/* 전체 타임라인 (얇은 바) */}
           {videoDuration > 0 && (
             <div className="tl-overview-wrap">
               <div className="tl-overview" onClick={e => {
@@ -416,12 +393,11 @@ export default function App() {
             </div>
           )}
 
-          {/* ── 줌인 타임라인 (현재 시간 ±10초) ── */}
+          {/* 줌인 타임라인 */}
           {videoDuration > 0 && (() => {
             const ZOOM_WINDOW = 20;
-            const halfW = ZOOM_WINDOW / 2;
-            let zStart = currentTime - halfW;
-            let zEnd = currentTime + halfW;
+            let zStart = currentTime - ZOOM_WINDOW / 2;
+            let zEnd = currentTime + ZOOM_WINDOW / 2;
             if (zStart < 0) { zEnd -= zStart; zStart = 0; }
             if (zEnd > videoDuration) { zStart -= (zEnd - videoDuration); zEnd = videoDuration; zStart = Math.max(0, zStart); }
             const toZoomPct = (sec) => `${((sec - zStart) / ZOOM_WINDOW) * 100}%`;
@@ -478,7 +454,6 @@ export default function App() {
             );
           })()}
 
-
           <div className="video-controls">
             <button onClick={() => seekFrames(-5)}>-5F</button>
             <button onClick={() => seekFrames(-1)}>-1F</button>
@@ -489,9 +464,7 @@ export default function App() {
           <div className="time-display">{secondsToTimecode(currentTime)}</div>
         </section>
 
-        {/* ── 자막 패널 ── */}
         <section className="subtitle-panel" ref={subtitlePanelRef}>
-          {/* 탭 */}
           <div className="panel-tabs">
             <button className={`panel-tab ${panelView==='card' ? 'active' : ''}`} onClick={() => setPanelView('card')}>📋 카드 뷰</button>
             <button className={`panel-tab ${panelView==='script' ? 'active' : ''}`} onClick={() => setPanelView('script')}>📝 스크립트 뷰</button>
@@ -507,7 +480,7 @@ export default function App() {
             }}>+ 첫 자막 추가</button>
           )}
 
-          {/* ── 카드 뷰 ── */}
+          {/* 카드 뷰 */}
           {panelView === 'card' && subtitles.map((s, i) => {
             const dur = s.end - s.start;
             const isTooLong = s.text.length / dur > MAX_CPS;
@@ -538,7 +511,7 @@ export default function App() {
             );
           })}
 
-          {/* ── 스크립트 뷰 ── */}
+          {/* 스크립트 뷰 */}
           {panelView === 'script' && (
             <div className="script-view">
               {subtitles.map((s, i) => {
